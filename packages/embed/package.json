@@ -1,0 +1,69 @@
+{
+  "name": "@relay/embed",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Relay \u00e2\u20ac\u201d the embeddable DreamDEX Event Contracts widget. One script tag, any site, every order tagged with the partner's builder code.",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./react": {
+      "types": "./dist/types/react.d.ts",
+      "default": "./src/react.tsx"
+    },
+    "./dist": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/relay.es.js"
+    },
+    "./iife": "./dist/relay.iife.js",
+    "./style.css": "./dist/relay.css",
+    "./README.md": "./README.md",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --config vite.iife.config.ts && tsc -p tsconfig.types.json && node scripts/size.mjs",
+    "dev": "vite --config vite.dev.config.ts",
+    "size": "node scripts/size.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "build:types": "tsc -p tsconfig.types.json"
+  },
+  "dependencies": {
+    "@relay/core": "workspace:*",
+    "preact": "^10.29.8",
+    "viem": "^2.21.0",
+    "@relay/ui-tokens": "workspace:*"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.0",
+    "vite": "^6.3.5",
+    "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}

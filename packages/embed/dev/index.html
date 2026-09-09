@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en" data-page-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Relay widget · playground</title>
+    <style>
+      :root {
+        --page-bg: #f6f7f9;
+        --page-ink: #0b0d10;
+        --page-muted: #6b7280;
+        --page-line: #e3e6ea;
+        --page-card: #fff;
+      }
+      html[data-page-theme="dark"] {
+        --page-bg: #0a0c0f;
+        --page-ink: #f2f5f8;
+        --page-muted: #8b95a1;
+        --page-line: #22272e;
+        --page-card: #14181d;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 24px 64px;
+        background: var(--page-bg);
+        color: var(--page-ink);
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      header { max-width: 1180px; margin: 0 auto 28px; display: flex; align-items: flex-start; gap: 16px; }
+      h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
+      p.lede { margin: 0; color: var(--page-muted); font-size: 13px; max-width: 60ch; }
+      .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+      .controls button, .controls select, .controls input {
+        font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px;
+        border: 1px solid var(--page-line); background: var(--page-card); color: inherit; cursor: pointer;
+      }
+      main { max-width: 1180px; margin: 0 auto; display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+      section { display: grid; gap: 10px; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--page-muted); margin: 0; font-weight: 700; }
+      code.snip { display: block; font-size: 11px; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: pre; color: var(--page-muted); }
+      #narrow-wrap { width: 300px; resize: horizontal; overflow: auto; border: 1px dashed var(--page-line); padding: 8px; border-radius: 12px; }
+      #narrow340-wrap { width: 340px; resize: horizontal; overflow: auto; border: 1px dashed var(--page-line); padding: 8px; border-radius: 12px; }
+      #narrow360-wrap { width: 360px; resize: horizontal; overflow: auto; border: 1px dashed var(--page-line); padding: 8px; border-radius: 12px; }
+      #narrow320-wrap { width: 320px; resize: horizontal; overflow: auto; border: 1px dashed var(--page-line); padding: 8px; border-radius: 12px; }
+      #log { max-width: 1180px; margin: 28px auto 0; font: 11px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 10px; padding: 10px 12px; max-height: 220px; overflow: auto; color: var(--page-muted); }
+      #log b { color: var(--page-ink); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Relay widget playground</h1>
+        <p class="lede">
+          The same widget mounted three ways. Events the host page receives
+          (<code>relay:trade</code>, <code>relay:fill</code>, <code>relay:claim</code>) are logged at the bottom.
+        </p>
+      </div>
+      <div class="controls">
+        <label>API <input id="api" value="http://localhost:8787" size="22" /></label>
+        <label>partner <input id="partner" value="1" size="3" /></label>
+        <button id="theme" type="button">Theme: light</button>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>1 · Script tag (auto-mount)</h2>
+        <code class="snip">&lt;div data-relay-market data-partner="1" data-builder="0x…"&gt;&lt;/div&gt;</code>
+        <div
+          id="w-script"
+          data-relay-market
+          data-partner="1"
+          data-builder="0xb5eCf004491aa8589a82af91633D18867fcFF038"
+          data-asset="BTC"
+          data-interval="900"
+          data-surface="web"
+          data-theme="auto"
+          data-api="http://localhost:8787"
+        ></div>
+      </section>
+
+      <section>
+        <h2>2 · Relay.mount()</h2>
+        <code class="snip">Relay.mount(el, { partner: 1, builder: "0x…" })</code>
+        <div id="w-api"></div>
+      </section>
+
+      <section>
+        <h2>3 · React &lt;RelayMarket/&gt;</h2>
+        <code class="snip">&lt;RelayMarket partner={1} builder="0x…" /&gt;</code>
+        <div id="w-react"></div>
+      </section>
+
+      <section>
+        <h2>4 · 300 px column</h2>
+        <code class="snip">responsive floor</code>
+        <div id="narrow-wrap"><div id="w-narrow"></div></div>
+      </section>
+
+      <section>
+        <h2>6 · 340 px column</h2>
+        <code class="snip">the breakpoint itself</code>
+        <div id="narrow340-wrap"><div id="w-340"></div></div>
+      </section>
+
+      <section>
+        <h2>7 · 360 px column</h2>
+        <code class="snip">pill collapses, clock keeps its words</code>
+        <div id="narrow360-wrap"><div id="w-360"></div></div>
+      </section>
+
+      <section>
+        <h2>5 · 320 px column</h2>
+        <code class="snip">the other side of the 340 px breakpoint</code>
+        <div id="narrow320-wrap"><div id="w-320"></div></div>
+      </section>
+    </main>
+
+    <div id="log"><b>events</b> — nothing yet</div>
+
+    <!-- 1 · the real built artifact a partner drops in (served verbatim from dist/); it auto-mounts [data-relay-market] -->
+    <script src="/relay.iife.js"></script>
+    <!-- everything below uses its own module copy, so stop that copy auto-mounting the same node -->
+    <script>
+      window.RELAY_DISABLE_AUTOMOUNT = true;
+    </script>
+    <script type="module">
+      import { mount, unmount } from "/src/index.ts";
+
+      const log = document.getElementById("log");
+      const push = (name, detail) => {
+        const line = document.createElement("div");
+        line.innerHTML = `<b>${name}</b> ${JSON.stringify(detail).slice(0, 220)}`;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+      };
+      for (const ev of ["relay:trade", "relay:fill", "relay:claim"]) {
+        document.addEventListener(ev, (e) => push(ev, e.detail));
+      }
+
+      const opts = () => ({
+        partner: Number(document.getElementById("partner").value) || undefined,
+        builder: "0xb5eCf004491aa8589a82af91633D18867fcFF038",
+        asset: "BTC",
+        intervalSec: 900,
+        surface: "web",
+        api: document.getElementById("api").value,
+      });
+
+      // 2 · programmatic mounts
+      mount(document.getElementById("w-api"), opts());
+      mount(document.getElementById("w-narrow"), { ...opts(), asset: "ETH", intervalSec: 300 });
+      mount(document.getElementById("w-320"), { ...opts(), asset: "BTC", intervalSec: 300 });
+      mount(document.getElementById("w-340"), { ...opts(), asset: "BTC", intervalSec: 900 });
+      mount(document.getElementById("w-360"), { ...opts(), asset: "BTC", intervalSec: 900 });
+
+      // Theme toggle: flips the page and every widget mounted with data-theme.
+      const btn = document.getElementById("theme");
+      btn.addEventListener("click", () => {
+        const next = document.documentElement.dataset.pageTheme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.pageTheme = next;
+        btn.textContent = `Theme: ${next}`;
+        document.querySelectorAll(".relay-widget-root").forEach((r) => r.setAttribute("data-theme", next));
+        document.querySelectorAll("[data-relay-market]").forEach((el) => el.setAttribute("data-theme", next));
+      });
+
+      window.__relayRemount = (id, o) => {
+        const el = document.getElementById(id);
+        unmount(el);
+        mount(el, { ...opts(), ...o });
+      };
+    </script>
+    <script type="module" src="/dev/react-demo.tsx"></script>
+  </body>
+</html>
