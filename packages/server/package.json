@@ -1,0 +1,28 @@
+{
+  "name": "@relay/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Relay as one process: the API, the chain indexer and the Telegram bot, sharing a database pool.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@relay/api": "workspace:*",
+    "@relay/core": "workspace:*",
+    "@relay/indexer": "workspace:*",
+    "@relay/telegram": "workspace:*",
+    "grammy": "^1.30.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.28.2"
+  }
+}

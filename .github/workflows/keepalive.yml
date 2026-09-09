@@ -1,0 +1,69 @@
+# Keep the free instance awake, and notice when the indexer is stuck.
+#
+# Render's free tier sleeps a service after 15 minutes without traffic, and a sleeping
+# indexer falls behind the chain. A request every five minutes costs nothing and keeps
+# it running.
+#
+# The second job is the one that matters: a service can be awake, answering /health,
+# and hours behind — a stuck cursor looks exactly like a healthy one from outside. So
+# the workflow reads the lag and FAILS when it is large, because a failed run is the
+# only thing GitHub will email about.
+
+name: keepalive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health and check indexer lag
+        env:
+          API_URL: ${{ vars.API_URL }}
+          # ~200 seconds behind on a 100 ms chain. Enough to ride out a redeploy or a
+          # slow RPC minute; small enough that a genuinely stuck cursor trips it.
+          MAX_LAG_BLOCKS: "2000"
+        run: |
+          set -uo pipefail
+          if [ -z "${API_URL:-}" ]; then
+            echo "::error::repository variable API_URL is not set (Settings → Secrets and variables → Actions → Variables)"
+            exit 1
+          fi
+
+          # A cold free instance takes a while to wake; give it three tries.
+          for attempt in 1 2 3; do
+            body=$(curl -fsS --max-time 60 "${API_URL%/}/health") && break
+            echo "attempt $attempt failed, retrying in 20s"
+            sleep 20
+          done
+
+          if [ -z "${body:-}" ]; then
+            echo "::error::no response from ${API_URL%/}/health after 3 attempts"
+            exit 1
+          fi
+          echo "$body"
+
+          lag=$(echo "$body" | jq -r '.lagBlocks // empty')
+          ok=$(echo "$body" | jq -r '.ok')
+          db=$(echo "$body" | jq -r '.dbOk')
+
+          [ "$db" = "true" ] || { echo "::error::database is unreachable from the API"; exit 1; }
+
+          if [ -z "$lag" ] || [ "$lag" = "null" ]; then
+            echo "::warning::no cursor yet — the indexer has not written a block. This is normal for a few minutes after a first deploy."
+            exit 0
+          fi
+
+          echo "lag: $lag blocks (ok=$ok)"
+          if [ "$lag" -gt "$MAX_LAG_BLOCKS" ]; then
+            echo "::error::indexer is $lag blocks behind (limit $MAX_LAG_BLOCKS) — it is probably stuck"
+            exit 1
+          fi

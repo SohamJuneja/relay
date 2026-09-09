@@ -1,0 +1,31 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# deps / build
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# reference clones (re-clone via docs/PROTOCOL_NOTES.md links)
+reference/
+
+# probe artifacts
+artifacts/
+*.log
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# embedded Postgres data (DATABASE_URL=pglite://…)
+.pglite/
+
+# Per-package env written by setup scripts (partner API keys)
+.env.local
+**/.env.local

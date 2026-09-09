@@ -1,0 +1,93 @@
+# Relay on Render's free tier.
+#
+# One web service running one process: the API, the chain indexer and the Telegram
+# bot, sharing a database pool. Splitting them would need three containers and three
+# sets of connections, and the free tier gives one of each.
+#
+# Deploy: Render dashboard → New → Blueprint → point at this repo.
+# The secrets below (sync: false) are filled in by hand at that point; Render never
+# reads them from this file.
+
+services:
+  - type: web
+    name: relay-server
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    # pnpm is not on the default image; corepack ships with Node 20 and installs the
+    # exact version this repo's lockfile was written with.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm -r build
+    startCommand: node packages/server/dist/index.js
+    # Render polls this. It answers as soon as the port is bound, and reports indexer
+    # lag in its body — an instance that is still backfilling is healthy and says so,
+    # rather than being killed and restarted into another backfill.
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # A 512 MB instance. Node's default heap target assumes far more, and the
+      # backfill's decoded-log batches are the peak.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400
+
+      # ── secrets: set these in the Render dashboard, they are never in git ──
+      - key: DATABASE_URL
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: MINIAPP_URL
+        sync: false
+
+      # ── chain ──
+      - key: RPC_URL
+        value: https://dream-rpc.somnia.network
+      - key: WS_RPC_URL
+        value: wss://dream-rpc.somnia.network/ws
+      - key: NETWORK
+        value: testnet
+      - key: CHAIN_ID
+        value: "50312"
+      - key: VENUE_ID
+        value: "0x679795a0195a1b76cdebb7c51d74e058aee92919b8c3389af86ef24535e8a28c"
+      - key: DEFAULT_VENUE_ID
+        value: "0x679795a0195a1b76cdebb7c51d74e058aee92919b8c3389af86ef24535e8a28c"
+
+      # ── sized for 512 MB and a free Postgres ──
+      # Backfill fetches chunks concurrently; each in-flight chunk is a batch of
+      # decoded logs held in memory, so this is the main memory dial.
+      - key: INDEXER_CONCURRENCY
+        value: "4"
+      # One process holds both the API's queries and the indexer's writes. Neon's free
+      # tier also caps connections; a pool that opens more than it may fails under load.
+      - key: PG_POOL_MAX
+        value: "5"
+      - key: BACKFILL_HOURS
+        value: "24"
+
+      # ── retention: see docs/PROTOCOL_NOTES.md §17 for the measured growth ──
+      # Orders are ~875 000 rows a day on this venue at ~635 bytes each. Days, not
+      # weeks, is the only setting that fits a free Postgres.
+      - key: ORDER_RETENTION_DAYS
+        value: "0.5"
+      - key: RAW_EVENT_RETENTION_DAYS
+        value: "2"
+      - key: ARCHIVE_RETENTION_DAYS
+        value: "7"
+      - key: OTHER_VENUE_RETENTION_DAYS
+        value: "2"
+
+      # ── API ──
+      - key: API_RATE_LIMIT_PER_MIN
+        value: "120"
+      - key: GAS_DRIP_PER_HOUR
+        value: "10"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: LOG_REQUESTS
+        value: "false"

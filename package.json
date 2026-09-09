@@ -1,0 +1,59 @@
+{
+  "name": "somnia-relay",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Relay \u00e2\u20ac\u201d distribution layer for DreamDEX Event Contracts on Somnia: embeddable widget + SDK, builder-code attribution indexer, partner console.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r --if-present typecheck",
+    "probe": "tsx scripts/probe.ts",
+    "test": "pnpm -r --if-present test",
+    "wallet": "tsx scripts/wallet.ts",
+    "builder-matrix": "tsx scripts/builder-matrix.ts",
+    "trade": "tsx scripts/trade.ts",
+    "settle": "tsx scripts/settle.ts",
+    "price": "tsx scripts/price.ts",
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "pnpm --filter @relay/indexer migrate",
+    "db:generate": "pnpm --filter @relay/indexer db:generate",
+    "indexer:backfill": "pnpm --filter @relay/indexer backfill",
+    "indexer:tail": "pnpm --filter @relay/indexer tail",
+    "indexer:stats": "pnpm --filter @relay/indexer stats",
+    "api:dev": "pnpm --filter @relay/api dev",
+    "api:start": "pnpm --filter @relay/api start",
+    "embed:build": "pnpm --filter @relay/embed build",
+    "embed:dev": "pnpm --filter @relay/embed dev",
+    "embed:size": "pnpm --filter @relay/embed size",
+    "console:dev": "pnpm --filter @relay/console dev",
+    "console:build": "pnpm --filter @relay/console build",
+    "tokens:css": "pnpm --filter @relay/ui-tokens build:css",
+    "demo:dev": "pnpm --filter @relay/demo-site dev",
+    "demo:build": "pnpm --filter @relay/demo-site build",
+    "tg:setup": "pnpm --filter @relay/telegram run setup:partner",
+    "tg:miniapp": "pnpm --filter @relay/telegram miniapp:dev",
+    "tg:bot": "pnpm --filter @relay/telegram bot",
+    "tg:tunnel": "pnpm --filter @relay/telegram tunnel"
+  },
+  "dependencies": {
+    "@relay/core": "workspace:*",
+    "@somnia-chain/markets-sdk": "0.29.0",
+    "@somnia-chain/reactivity": "^0.2.1",
+    "dotenv": "^16.4.5",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "react"
+      ]
+    }
+  }
+}
