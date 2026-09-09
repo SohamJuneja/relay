@@ -1,0 +1,41 @@
+{
+  "name": "@relay/indexer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Chain-only indexer for DreamDEX Event Contracts on Somnia with Relay partner attribution (Postgres + Drizzle).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "migrate": "tsx src/cli/migrate.ts",
+    "backfill": "tsx src/cli/backfill.ts",
+    "tail": "tsx src/cli/tail.ts",
+    "stats": "tsx src/cli/stats.ts",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@relay/core": "workspace:*",
+    "@somnia-chain/markets-sdk": "0.29.0",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "viem": "^2.21.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

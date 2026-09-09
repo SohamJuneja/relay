@@ -1,0 +1,48 @@
+{
+  "name": "@relay/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Relay public REST + WebSocket API over the chain-only indexer (Fastify 5, zod, OpenAPI 3.1).",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/etag": "^6.2.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.8.1",
+    "@fastify/swagger-ui": "^6.1.1",
+    "@fastify/websocket": "^11.3.0",
+    "@relay/core": "workspace:*",
+    "@relay/indexer": "workspace:*",
+    "@somnia-chain/markets-sdk": "0.29.0",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.12.3",
+    "fastify-type-provider-zod": "^7.0.0",
+    "viem": "^2.21.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "ws": "^8.18.0"
+  },
+  "exports": {
+    "./app": {
+      "types": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./deps": {
+      "types": "./src/deps.ts",
+      "default": "./src/deps.ts"
+    }
+  }
+}
