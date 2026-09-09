@@ -495,3 +495,60 @@ with a blank closing price forever. Poll a few ticks past resolution, bounded.
    CANCEL_TAKER (0) vs CANCEL_MAKER (1) — the kit never sets it.
 10. **Mainnet builder cap is "1 %"** per the kit — is it per fill notional, and is the fee taken
     from the taker only or from both sides? (`BuilderFeeRecord.payer` suggests per payer.)
+
+## 17. What this venue costs to store (Phase 6)
+
+Measured on Shannon, 9 September 2026, over a 24-hour window, with index size
+included. Bytes per row is `pg_total_relation_size / n_live_tup`.
+
+| table | rows/day | bytes/row | MB/day |
+| --- | --- | --- | --- |
+| `orders` (default venue only) | 873,500 | 635 | **529** |
+| `raw_events` | 35,377 | 1,127 | 38 |
+| `fills` (default venue) | 14,128 | 737 | 10 |
+| `redemptions` | 10,443 | 716 | 7 |
+| `protocol_fee_events` | 9,910 | 609 | 6 |
+| `markets` (other venues) | 3,553 | 1,241 | 4 |
+| `markets` (default venue) | 838 | 1,241 | 1 |
+
+Two things are worth noticing.
+
+**Orders are 89% of everything.** Market makers place and cancel constantly — nearly
+900,000 rows a day on one venue, and another 700,000 across the rest of the chain.
+Keeping three days of them is 1.6 GB, which no free Postgres holds.
+
+**Only 19% of the chain's markets are on this venue**, but 95% of its fills are. So
+scoping markets to the venue is worth 81% of that table, while scoping fills saves
+almost nothing.
+
+### What orders are actually for
+
+Three things, and only one of them needs history:
+
+1. **Attributing a fill** whose order arrived in an earlier ingest chunk. Needs hours,
+   not days.
+2. **The quoted-but-untaken statistic** — which no longer reads them at all. It is
+   latched onto `markets.had_bid` / `markets.had_ask` when an order rests, so it
+   survives any pruning. Two booleans per market instead of a thousand rows.
+3. `GET /v1/orders/:orderId`, a convenience endpoint.
+
+Live books come from RPC, not from this table.
+
+### The settings we ship
+
+`ORDER_RETENTION_DAYS=0.125` (3 h), `RAW_EVENT_RETENTION_DAYS=0.25`,
+`ARCHIVE_RETENTION_DAYS=2`, `OTHER_VENUE_RETENTION_DAYS=1`.
+
+That gives ~106 MB of rolling data plus ~11 MB/day of permanent history (this venue's
+fills and markets, which are the product):
+
+| | |
+| --- | --- |
+| day 7 | 183 MB |
+| day 30 | 434 MB |
+| day 60 | 761 MB |
+
+**This does not meet a 400 MB / 30 day target**, and it cannot while keeping a month
+of this venue's fills — those alone are 297 MB of the 434. It does fit Neon's 512 MB
+free tier for roughly five to six weeks, after which either fills get a retention
+window too, or the tier changes.
