@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @relay/embed build && pnpm --filter @relay/telegram miniapp:build",
+  "buildCommand": "cd ../../.. && corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @relay/embed build && pnpm --filter @relay/telegram miniapp:build",
   "outputDirectory": "../dist-miniapp",
   "installCommand": "echo 'installed by buildCommand at the workspace root'",
   "framework": null,

@@ -1,0 +1,113 @@
+# Everything that must hold before main moves.
+#
+# The three jobs answer three different questions, and the third is the one that has
+# actually caught production bugs:
+#
+#   checks       — does it typecheck, do the tests pass, is there a secret in a
+#                  tracked file?
+#   smoke        — does a FRESH CLONE build and does the server actually start? A
+#                  bundle is not self-contained; ajv and fast-json-stringify are
+#                  required by code Fastify generates, @fastify/swagger-ui reads its
+#                  own assets from __dirname, and PGlite used to be imported
+#                  statically. None of that is visible to a typecheck or a unit test.
+#   sites        — do the four static builds still produce output?
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # --ignore-scripts everywhere, matching Render and Vercel. pnpm fails an install
+  # over unapproved dependency build scripts, and nothing here needs one.
+  PNPM_INSTALL: install --frozen-lockfile --ignore-scripts
+
+jobs:
+  checks:
+    name: typecheck · tests · secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The secret scan asks git which files are tracked, and shallow is enough
+          # for that — but a full history lets it see anything added in this push.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm ${{ env.PNPM_INSTALL }}
+
+      # Before anything else: a leaked key in a tracked file is the one failure that
+      # cannot be undone by a later commit.
+      - name: Secret scan
+        run: pnpm secrets:scan
+
+      - run: pnpm typecheck
+      - run: pnpm -r test
+
+  smoke:
+    name: production build and start
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # smoke:prod clones the repo again into a temp directory and installs there, so
+      # this install exists only to provide the script's own dependencies.
+      - run: pnpm ${{ env.PNPM_INSTALL }}
+
+      - name: Build a fresh clone and dry-start the server
+        run: pnpm smoke:prod
+
+  sites:
+    name: static builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm ${{ env.PNPM_INSTALL }}
+
+      # The widget first: the console, the demo site and the mini-app all consume it,
+      # and its build enforces the gzip budget.
+      - run: pnpm --filter @relay/embed build
+      - run: pnpm --filter @relay/console build
+        env:
+          # A production console build refuses to start without these, deliberately —
+          # a deployed page whose links point at localhost is worse than a failed build.
+          VITE_API_URL: https://ci.invalid
+          VITE_CDN_URL: https://ci.invalid
+          VITE_CONSOLE_URL: https://ci.invalid
+          VITE_EXPLORER_URL: https://shannon-explorer.somnia.network
+      - run: pnpm --filter @relay/demo-site build
+      - run: pnpm --filter @relay/telegram miniapp:build
+
+      - name: Check each build produced something
+        run: |
+          set -e
+          for d in apps/console/dist apps/demo-site/dist packages/embed/dist packages/telegram/dist-miniapp; do
+            test -d "$d" || { echo "::error::$d is missing"; exit 1; }
+            echo "$d — $(find "$d" -type f | wc -l) files"
+          done
+          test -f packages/embed/dist/relay.iife.js

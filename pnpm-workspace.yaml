@@ -6,6 +6,23 @@ packages:
 autoInstallPeers: false
 strictPeerDependencies: false
 
-# esbuild (via tsx) needs its postinstall to place the platform binary.
+# pnpm blocks dependency install scripts by default and fails the whole install unless
+# each one is listed here. All three are safe and none is optional in practice:
+#
+#   esbuild                    — places its platform binary. The bundler for
+#                                packages/server and two test suites need it.
+#   bufferutil, utf-8-validate — optional native accelerators for ws. They compile on
+#                                install; if compilation fails they are simply absent
+#                                and ws uses its JavaScript path, so a deploy is never
+#                                blocked by them.
+#
+# scripts/smoke-prod.mjs runs this exact install in a fresh clone on every push, which
+# is how we know the list is complete.
+onlyBuiltDependencies:
+  - bufferutil
+  - esbuild
+  - utf-8-validate
 allowBuilds:
-  esbuild: true
+  bufferutil: set this to true or false
+  esbuild: set this to true or false
+  utf-8-validate: set this to true or false

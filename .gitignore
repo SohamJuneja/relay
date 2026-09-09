@@ -29,3 +29,10 @@ artifacts/
 # Per-package env written by setup scripts (partner API keys)
 .env.local
 **/.env.local
+
+# Build output that does not match the `dist/` pattern, plus the widget bundle the
+# mini-app and demo site copy in from packages/embed at build time. Both are produced
+# by `pnpm build`; committing them means a stale copy shipping instead of a fresh one.
+dist-miniapp/
+packages/telegram/miniapp/public/relay.iife.js
+apps/demo-site/public/relay.iife.js

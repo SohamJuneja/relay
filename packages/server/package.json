@@ -12,17 +12,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@fastify/swagger-ui": "^6.1.1",
     "@relay/api": "workspace:*",
     "@relay/core": "workspace:*",
     "@relay/indexer": "workspace:*",
     "@relay/telegram": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "fast-json-stringify": "^7.0.1",
     "grammy": "^1.30.0",
     "viem": "^2.21.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "esbuild": "^0.28.2"
+    "typescript": "^5.6.0"
   }
 }

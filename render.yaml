@@ -17,7 +17,12 @@ services:
     branch: main
     # pnpm is not on the default image; corepack ships with Node 20 and installs the
     # exact version this repo's lockfile was written with.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm -r build
+    # --ignore-scripts: pnpm blocks dependency install scripts by default and FAILS the
+    # install unless each is approved, which killed the first build here. Nothing in this
+    # tree needs one — esbuild resolves its platform binary through optional
+    # dependencies, and ws's native accelerators are optional by design — so skipping
+    # them also means a deploy never compiles C++ on a 512 MB box.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm -r build
     startCommand: node packages/server/dist/index.js
     # Render polls this. It answers as soon as the port is bound, and reports indexer
     # lag in its body — an instance that is still backfilling is healthy and says so,

@@ -22,7 +22,6 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "@relay/core": "workspace:*",
     "@somnia-chain/markets-sdk": "0.29.0",
     "dotenv": "^16.4.5",
@@ -32,6 +31,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^20.14.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",

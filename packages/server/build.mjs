@@ -27,7 +27,29 @@ const result = await build({
   logLevel: "info",
   // pg's native bindings and PGlite's wasm cannot be inlined; drizzle's migrator reads
   // migration files from disk, so those are copied below rather than bundled.
-  external: ["pg-native", "@electric-sql/pglite", "cpu-features"],
+  // Never bundled, and never required at runtime either:
+  //   pglite      — a ~100 MB WASM Postgres that only tests use. It is behind a lazy
+  //                 import in openDb(), so marking it external keeps esbuild from
+  //                 pulling it in AND leaves the import unreachable in production.
+  //                 A static import here is what crashed the first Render deploy.
+  //   pg-native   — optional native bindings postgres.js probes for.
+  //   cpu-features— an optional native dep of a transitive package.
+  external: [
+    // Lazy and unreachable in production: PGlite is a ~100 MB WASM Postgres that only
+    // tests use, behind an import inside openDb(). A static import of it is what
+    // crashed the first Render deploy.
+    "@electric-sql/pglite",
+    "drizzle-orm/pglite",
+    "drizzle-orm/pglite/migrator",
+    // Reads its own static assets (the Swagger UI bundle, logo.svg) from __dirname.
+    // Bundling relocates the code away from those files, and the resulting mix of
+    // require() and top-level await also makes Node refuse to pick a module format.
+    // It has to stay a real package in node_modules.
+    "@fastify/swagger-ui",
+    // Optional native bindings that their callers probe for behind try/catch.
+    "pg-native",
+    "cpu-features",
+  ],
   banner: {
     // ESM has no require(); a few transitive CommonJS deps still reach for it.
     js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",

@@ -24,6 +24,27 @@ import { startBot } from "./bot.js";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[server]", ...a);
 
+/**
+ * Everything the bundle requires by bare specifier at run time.
+ *
+ * esbuild inlines what it can see. These it cannot: ajv and fast-json-stringify
+ * generate JavaScript that requires their own runtime helpers by name, so those
+ * packages must be resolvable on disk from this file — which means declared as
+ * dependencies of @relay/server, not merely present somewhere in the workspace.
+ * pnpm's non-hoisted layout is unforgiving about the difference, and that is a good
+ * thing: it fails here rather than on the first request in production.
+ */
+const RUNTIME_REQUIRES = [
+  "ajv",
+  "ajv/dist/runtime/equal",
+  "ajv/dist/runtime/uri",
+  "ajv-formats",
+  "ajv-formats/dist/formats",
+  "fast-json-stringify",
+  "fast-json-stringify/lib/serializer",
+  "fast-json-stringify/lib/validator",
+];
+
 const PORT = Number(process.env.PORT || process.env.API_PORT || 8787);
 const HOST = process.env.API_HOST || "0.0.0.0";
 
@@ -35,6 +56,20 @@ async function main(): Promise<void> {
   // the migrator at it — before anything opens a database.
   if (!process.env.MIGRATIONS_DIR) {
     process.env.MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "drizzle");
+  }
+
+  // A dry start proves the bundle can actually run, without touching a database or
+  // the chain. `pnpm smoke:prod` runs it in a fresh clone on every push.
+  //
+  // Loading this file is NOT the test. Both production failures we have had were
+  // modules resolved later than that: PGlite behind an import inside openDb, and the
+  // helpers ajv and fast-json-stringify require from code they generate when Fastify
+  // compiles a route's schemas. So the dry start resolves the known runtime
+  // specifiers explicitly, and then builds the whole app — which is what forces that
+  // code generation to happen.
+  if (process.env.RELAY_DRY_START === "1") {
+    await dryStart();
+    process.exit(0);
   }
 
   // The API's deps own the pg pool and the RPC client; the indexer borrows both.
@@ -82,3 +117,47 @@ async function main(): Promise<void> {
 }
 
 await main();
+
+
+async function dryStart(): Promise<void> {
+  const { createRequire } = await import("node:module");
+  const req = createRequire(import.meta.url);
+  const missing: string[] = [];
+  for (const m of RUNTIME_REQUIRES) {
+    try {
+      req.resolve(m);
+    } catch {
+      missing.push(m);
+    }
+  }
+  if (missing.length) {
+    log(`FAIL — these are required at run time but cannot be resolved:\n  ${missing.join("\n  ")}`);
+    log("Add them to packages/server's dependencies; a bundle does not make them optional.");
+    process.exit(1);
+  }
+  log(`resolved ${RUNTIME_REQUIRES.length} runtime requires`);
+
+  // Build the real app against stub dependencies. This compiles every route's zod
+  // schema through fast-json-stringify and ajv, which is the step that reaches for
+  // the modules above. Nothing here opens a socket or a connection.
+  const stub = {
+    // A real network name: routes resolve chain endpoints from it while they register,
+    // so a placeholder makes the app fail to build for a reason that has nothing to do
+    // with what this is testing.
+    cfg: { network: "testnet", decimals: 6, defaultVenueId: `0x${"0".repeat(64)}`, priceAssets: ["BTC"], builderFeeBps: 100, rpcUrl: process.env.RPC_URL, wsRpcUrl: process.env.WS_RPC_URL },
+    db: { execute: async () => [], select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }), limit: async () => [] }) }) },
+    client: { getBlockNumber: async () => 0n },
+    ticker: { get: () => null, all: () => [] },
+    books: { get: async () => null },
+    outcomeToken: async () => `0x${"0".repeat(40)}`,
+    migrate: async () => undefined,
+    close: async () => undefined,
+  } as unknown as Parameters<typeof buildApp>[0];
+
+  const app = await buildApp(stub);
+  await app.ready();
+  const routes = Object.keys((app.swagger() as { paths?: Record<string, unknown> }).paths ?? {}).length;
+  await app.close();
+  log(`built the app and compiled ${routes} routes' schemas`);
+  log("dry start OK — every module the server needs at run time is present");
+}
