@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bitcoin spent the hour going nowhere, and that is the story — Block Ledger</title>
+    <meta name="description" content="Fictional market commentary, written to demonstrate an embedded prediction-market widget." />
+    <link rel="stylesheet" href="/src/site.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="inner">
+        <a class="wordmark" href="/">Block <em>Ledger</em></a>
+        <span class="dateline" data-today>—</span>
+        <span class="dateline" style="margin-left: auto">Fictional publication · demo</span>
+      </div>
+    </header>
+
+    <nav class="sections">
+      <div class="inner">
+        <a href="/">Front page</a>
+        <a href="/btc-window/" aria-current="page">Markets</a>
+        <a href="/">Chains</a>
+        <a href="/">Policy</a>
+        <a href="/">Research</a>
+        <a href="/">Opinion</a>
+      </div>
+    </nav>
+
+    <main>
+      <div class="article-wrap">
+        <article class="article-body">
+          <span class="opinion-flag">Opinion — not financial advice</span>
+          <h1>Bitcoin spent the hour going nowhere, and that is the story</h1>
+          <p class="standfirst">
+            Four fifteen-minute windows, four closes inside a forty-dollar band. The tape is not quiet because nobody is
+            trading. It is quiet because everybody agrees.
+          </p>
+
+          <div class="article-meta">
+            <span>By <b>Marguerite Okonjo</b>, Markets</span>
+            <span data-today>—</span>
+            <span>5 min read</span>
+          </div>
+
+          <p>
+            The most interesting hour of trading I have watched this month produced almost no price movement at all.
+            Bitcoin opened the first fifteen-minute window a shade under seventy-nine thousand three hundred, closed it
+            eleven dollars higher, and then did approximately that three more times. If you had looked only at the
+            hourly candle you would have concluded nothing happened. The order book says otherwise.
+          </p>
+
+          <p>
+            What actually happened is that the short-dated event contracts on this venue spent the hour pricing the
+            next quarter of an hour at something very close to a coin flip, and the market makers were content to let
+            them. The up side traded between forty-six and fifty-four cents on the dollar for most of the hour. That is
+            not indecision. That is a market that has correctly identified that it does not know, and has priced
+            accordingly, which is a rarer and more disciplined thing than it sounds.
+          </p>
+
+          <h3>The quiet is expensive</h3>
+
+          <p>
+            Every one of these windows is a self-contained contract. It opens, it takes orders for fifteen minutes,
+            the oracle reads a price, and it settles. There is no position to carry, no funding to pay, no liquidation
+            to fear. The entire risk of the instrument is the fifteen minutes in front of you. That structure is
+            supposed to make it cheap to have an opinion, and for the taker it does.
+          </p>
+
+          <p>
+            For the maker it does the opposite. A market maker quoting a fifteen-minute binary at fifty cents is
+            writing an option that expires before they can hedge it in any meaningful venue. The spread has to pay for
+            that, and on the thinner series it plainly does not — which is why, on a venue processing more than eleven
+            thousand fills a day, roughly a third of completed windows close with no trade in them at all. Not because
+            nobody quoted. Because somebody quoted on both sides and nobody took it.
+          </p>
+
+          <blockquote>
+            A third of the windows on this venue are offered and refused. That is not a liquidity problem. It is a
+            distribution problem wearing a liquidity problem's clothes.
+          </blockquote>
+
+          <div class="callout">
+            <p>Think BTC closes higher than it opened this window? You can take the other side of that argument here.</p>
+            <a class="go" href="#trade-window" data-scroll-to-widget>Trade this window</a>
+          </div>
+
+          <p>
+            I keep coming back to that number because it reframes what the venue's problem actually is. The books are
+            there. The settlement works. The oracle answers in about a second. What is missing is anybody arriving with
+            an opinion at the moment the window is open, and the reason is that the window is open for fifteen minutes
+            and the people with opinions are somewhere else — reading, arguing, scrolling — during all of them.
+          </p>
+
+          <h3>Where the order comes from</h3>
+
+          <p>
+            Which is roughly why you are looking at a trading card in the margin of a newspaper column. The card is not
+            ours; it belongs to the venue, and it arrived here as two lines of markup. What it does carry is a code
+            identifying this publication, written into the order itself, so that when one of you takes a position the
+            venue can see where the order came from and pay whoever sent it. That mechanism is not new — every exchange
+            has some version of it — but the thing being paid for here is unusually honest. It is not a referral link
+            or a tracking pixel. It is a field in the transaction.
+          </p>
+
+          <p>
+            I am ambivalent about the model and comfortable saying so in the same column that hosts it. Publications
+            embedding a live market next to commentary about that market is a conflict that deserves naming, which is
+            why this piece is filed as opinion and why the card says what it costs before you touch it. But the
+            alternative on offer — that trading venues remain places you must already have decided to visit — has
+            produced a venue where a third of the windows go untraded. That is a worse outcome for everyone, including
+            the readers who never hear about it.
+          </p>
+
+          <h3>What to watch next</h3>
+
+          <p>
+            The five-minute series is the one to watch. It carries the most fills and the widest spreads, which usually
+            means the makers there are being paid properly for the risk and the takers are paying for immediacy. If
+            those spreads compress while the fill count holds, somebody has found a hedge. If the fill count collapses
+            instead, the makers have simply left. Either would tell us more about this market's structure than another
+            hour of forty-dollar candles.
+          </p>
+
+          <div class="disclaimer">
+            <b>About this article.</b> Block Ledger is a fictional publication and this column is invented, including
+            the byline, the quotation and the market commentary. It exists to demonstrate a trading widget embedded in
+            a third party's page. The market data in the card beside it is real and comes from a test network; the
+            words around it are not reporting and are not financial advice.
+          </div>
+        </article>
+
+        <aside class="rail">
+          <div class="widget-slot" id="trade-window">
+            <h3>This window</h3>
+            <!--
+              The whole integration. In production a publisher pastes exactly this: a
+              script tag pointing at the hosted bundle, and one div. `data-partner` and
+              `data-builder` are the two attributes that decide who gets credited; the
+              script below only fills them in from an env var so this demo can run
+              against a local API.
+            -->
+            <div
+              data-relay-market
+              data-partner="3"
+              data-builder="0xFb2341494D602B7988D368b3A361a4B7110563f6"
+              data-surface="web"
+              data-theme="auto"
+              data-asset="BTC"
+              data-interval="900"
+            ></div>
+            <p class="attribution">
+              Powered by <a href="#" data-partner-link rel="noreferrer noopener">Relay · attribution on-chain</a>. Block
+              Ledger is credited for orders placed here.
+            </p>
+          </div>
+
+          <div class="most-read">
+            <h3>Most read</h3>
+            <ol>
+              <li><a href="/btc-window/">Half of all short-dated windows close without a single trade</a></li>
+              <li><a href="/btc-window/">A sub-second chain finds out what people want to do with it</a></li>
+              <li><a href="/btc-window/">What a builder code is, and why it is worth arguing about</a></li>
+              <li><a href="/btc-window/">Ether's four-hour window has a spread problem</a></li>
+            </ol>
+          </div>
+
+          <div class="ad-slot" aria-hidden="true">Advertisement</div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="inner">
+        <div class="cols">
+          <a href="/">About Block Ledger</a>
+          <a href="/">Ethics policy</a>
+          <a href="/">Contact</a>
+          <a href="/">Front page</a>
+        </div>
+        <div>
+          Block Ledger is a fictional publication created to demonstrate an embedded trading widget. Every headline,
+          byline and quotation on this site is invented. Nothing here is reporting, advice, or a recommendation.
+        </div>
+      </div>
+    </footer>
+
+    <!-- The widget, loaded the way a publisher loads it: one static file, no bundler. -->
+    <script src="/relay.iife.js"></script>
+    <script type="module">
+      import { configureWidgetMount, consoleEcosystemUrl, todayLong, todayShort } from "/src/config.js";
+
+      for (const el of document.querySelectorAll("[data-today]")) el.textContent = todayLong();
+      for (const el of document.querySelectorAll("[data-today-short]")) el.textContent = todayShort();
+
+      // Point the card at whichever API this build targets, then mount. The IIFE
+      // auto-mounts on load, so the attributes have to be right before it runs — they
+      // are, because they are in the markup; this only overrides the API base.
+      const slot = document.querySelector("[data-relay-market]");
+      configureWidgetMount(slot);
+      if (window.Relay && slot && !slot.querySelector(".relay-widget-root")) window.Relay.mount(slot);
+
+      document.querySelector("[data-partner-link]")?.setAttribute("href", consoleEcosystemUrl());
+
+      // The mid-article call-out scrolls to the card that is already on the page.
+      // Mounting a second widget would double every request the card makes and give
+      // the reader two positions to reconcile.
+      document.querySelector("[data-scroll-to-widget]")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        const target = document.getElementById("trade-window");
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        target?.animate?.([{ opacity: 0.55 }, { opacity: 1 }], { duration: 420, easing: "ease-out" });
+      });
+    </script>
+  </body>
+</html>

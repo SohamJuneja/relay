@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Relay mini-app — local harness</title>
+    <!--
+      The harness stands in for Telegram so the mini-app can be driven without a phone.
+      It defines Telegram.WebApp BEFORE the app's module runs, with a real theme
+      palette, a colorScheme, initData, and recording stubs for the calls the app makes
+      — so a test can assert that the app expanded, locked the swipe, and buzzed.
+
+      `__harness: true` is how isRealTelegram() tells this apart from the real client:
+      the browser bar must still appear here, because this IS a browser.
+    -->
+    <script>
+      (() => {
+        const params = new URLSearchParams(location.search);
+        const scheme = params.get("scheme") === "dark" ? "dark" : "light";
+        const calls = [];
+        const record = (name) => (...args) => {
+          calls.push({ name, args });
+          return undefined;
+        };
+        const light = {
+          bg_color: "#ffffff",
+          secondary_bg_color: "#f1f1f1",
+          text_color: "#000000",
+          hint_color: "#707579",
+          link_color: "#3390ec",
+          button_color: "#3390ec",
+          button_text_color: "#ffffff",
+        };
+        const dark = {
+          bg_color: "#17212b",
+          secondary_bg_color: "#232e3c",
+          text_color: "#f5f5f5",
+          hint_color: "#708499",
+          link_color: "#6ab3f3",
+          button_color: "#5288c1",
+          button_text_color: "#ffffff",
+        };
+        const handlers = {};
+        window.Telegram = {
+          WebApp: {
+            __harness: true,
+            // A plausible initData string. It is never trusted by the app — it is only
+            // displayed — so a stub value is honest here.
+            initData: "query_id=HARNESS&user=%7B%22id%22%3A1%2C%22first_name%22%3A%22Harness%22%7D&auth_date=0&hash=stub",
+            initDataUnsafe: { user: { id: 1, first_name: "Harness", username: "harness" } },
+            colorScheme: scheme,
+            themeParams: scheme === "dark" ? dark : light,
+            viewportHeight: window.innerHeight,
+            ready: record("ready"),
+            expand: record("expand"),
+            disableVerticalSwipes: record("disableVerticalSwipes"),
+            enableVerticalSwipes: record("enableVerticalSwipes"),
+            enableClosingConfirmation: record("enableClosingConfirmation"),
+            disableClosingConfirmation: record("disableClosingConfirmation"),
+            setHeaderColor: record("setHeaderColor"),
+            setBackgroundColor: record("setBackgroundColor"),
+            onEvent: (name, cb) => {
+              handlers[name] = cb;
+              calls.push({ name: "onEvent", args: [name] });
+            },
+            HapticFeedback: {
+              impactOccurred: record("haptic.impact"),
+              notificationOccurred: record("haptic.notification"),
+            },
+          },
+        };
+        // What a test reads to check the app did the Telegram-specific things.
+        window.__harnessCalls = calls;
+        window.__harnessFire = (name) => handlers[name]?.();
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="app">
+      <div class="bar" id="browser-bar" hidden>
+        <span>Open in Telegram for the full experience — haptics, your theme, and one-tap return.</span>
+      </div>
+
+      <header class="head">
+        <div class="title">Relay</div>
+        <div class="sub" id="who">testnet · Somnia Shannon</div>
+      </header>
+
+      <div id="mount" data-relay-market data-surface="telegram" data-asset="BTC" data-interval="900"></div>
+
+      <footer class="foot">
+        <span id="note">Testnet only. The wallet is created in this browser and its key never leaves your device.</span>
+      </footer>
+    </div>
+
+    <script src="/relay.iife.js"></script>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

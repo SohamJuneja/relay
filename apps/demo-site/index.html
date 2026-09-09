@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Block Ledger — markets, chains and the money moving between them</title>
+    <meta name="description" content="Block Ledger is a fictional publication built to demonstrate an embedded prediction-market widget. Nothing here is real reporting." />
+    <link rel="stylesheet" href="/src/site.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="inner">
+        <a class="wordmark" href="/">Block <em>Ledger</em></a>
+        <span class="dateline" data-today>—</span>
+        <span class="dateline" style="margin-left: auto">Fictional publication · demo</span>
+      </div>
+    </header>
+
+    <nav class="sections">
+      <div class="inner">
+        <a href="/" aria-current="page">Front page</a>
+        <a href="/btc-window/">Markets</a>
+        <a href="/">Chains</a>
+        <a href="/">Policy</a>
+        <a href="/">Research</a>
+        <a href="/">Opinion</a>
+      </div>
+    </nav>
+
+    <main>
+      <section class="lead">
+        <div>
+          <div class="kicker">Markets · Opinion</div>
+          <h1><a href="/btc-window/">Bitcoin spent the hour going nowhere, and that is the story</a></h1>
+          <p class="standfirst">
+            Four fifteen-minute windows, four closes inside a forty-dollar band. The tape is not quiet because nobody
+            is trading — it is quiet because everybody agrees.
+          </p>
+          <p class="byline">By <b>Marguerite Okonjo</b> · <span data-today-short>—</span></p>
+        </div>
+        <div>
+          <div class="ad-slot" aria-hidden="true">Advertisement</div>
+        </div>
+      </section>
+
+      <div class="grid">
+        <article class="teaser">
+          <span class="tag">Chains</span>
+          <h2><a href="/btc-window/">A sub-second chain finds out what people actually want to do with it</a></h2>
+          <p>Block times measured in tenths of a second changed which applications are worth writing. Prediction markets were not the obvious answer.</p>
+          <p class="byline">By <b>Idris Fanshawe</b> · <span data-today-short>—</span></p>
+        </article>
+
+        <article class="teaser">
+          <span class="tag">Research</span>
+          <h2><a href="/btc-window/">Half of all short-dated windows close without a single trade</a></h2>
+          <p>An indexer reading the venue directly finds order books quoted on both sides and left untouched, hour after hour.</p>
+          <p class="byline">By <b>Marguerite Okonjo</b> · <span data-today-short>—</span></p>
+        </article>
+
+        <article class="teaser">
+          <span class="tag">Policy</span>
+          <h2><a href="/btc-window/">Regulators circle event contracts, and the definitions are doing the work</a></h2>
+          <p>Whether a fifteen-minute binary is a derivative, a wager or neither depends on which paragraph you start reading from.</p>
+          <p class="byline">By <b>Teodora Vance</b> · <span data-today-short>—</span></p>
+        </article>
+
+        <article class="teaser">
+          <span class="tag">Markets</span>
+          <h2><a href="/btc-window/">Ether's four-hour window is the one with the spread problem</a></h2>
+          <p>Longer windows attract makers. The four-hour book says otherwise, and the reason is not obvious.</p>
+          <p class="byline">By <b>Idris Fanshawe</b> · <span data-today-short>—</span></p>
+        </article>
+
+        <article class="teaser">
+          <span class="tag">Opinion</span>
+          <h2><a href="/btc-window/">The distribution problem nobody in this industry wants to name</a></h2>
+          <p>Building the exchange was the easy half. Getting an order to it from somewhere a person already is remains unsolved.</p>
+          <p class="byline">By <b>Teodora Vance</b> · <span data-today-short>—</span></p>
+        </article>
+
+        <article class="teaser">
+          <span class="tag">Markets</span>
+          <h2><a href="/btc-window/">What a builder code is, and why it is suddenly worth arguing about</a></h2>
+          <p>A single address on an order decides who gets paid for bringing it. The plumbing is trivial; the economics are not.</p>
+          <p class="byline">By <b>Marguerite Okonjo</b> · <span data-today-short>—</span></p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="inner">
+        <div class="cols">
+          <a href="/">About Block Ledger</a>
+          <a href="/">Ethics policy</a>
+          <a href="/">Contact</a>
+          <a href="/btc-window/">Markets</a>
+        </div>
+        <div>
+          Block Ledger is a fictional publication created to demonstrate an embedded trading widget. Every headline,
+          byline and quotation on this site is invented. Nothing here is reporting, advice, or a recommendation.
+        </div>
+      </div>
+    </footer>
+
+    <script type="module">
+      import { todayLong, todayShort } from "/src/config.js";
+      for (const el of document.querySelectorAll("[data-today]")) el.textContent = todayLong();
+      for (const el of document.querySelectorAll("[data-today-short]")) el.textContent = todayShort();
+    </script>
+  </body>
+</html>
