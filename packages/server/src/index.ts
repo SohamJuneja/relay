@@ -16,6 +16,7 @@
 // visible rather than silent.
 
 import path from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { buildApp } from "@relay/api/app";
 import { createDeps } from "@relay/api/deps";
@@ -45,18 +46,28 @@ const RUNTIME_REQUIRES = [
   "fast-json-stringify/lib/validator",
 ];
 
+/**
+ * Where this bundle keeps its migrations: beside itself, always.
+ *
+ * Set at MODULE scope, not inside main(). The indexer's db client used to read this
+ * into a module-level constant, which was evaluated while this file's imports were
+ * still being wired up — before main() ever ran — so an assignment inside main() came
+ * too late and the migrator looked in a directory that does not exist. The client now
+ * reads it lazily too, and both halves of that fix are needed: this one so the value
+ * exists early, that one so a late change would still be honoured.
+ *
+ * Resolved from `import.meta.url`, never from cwd. Render starts the process at the
+ * repo root, so anything cwd-relative resolves somewhere else entirely.
+ */
+export const BUNDLED_MIGRATIONS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "drizzle");
+if (!process.env.MIGRATIONS_DIR) process.env.MIGRATIONS_DIR = BUNDLED_MIGRATIONS;
+
 const PORT = Number(process.env.PORT || process.env.API_PORT || 8787);
 const HOST = process.env.API_HOST || "0.0.0.0";
 
 async function main(): Promise<void> {
   log(`starting · node ${process.version} · ${process.env.NETWORK ?? "testnet"}`);
 
-  // The migrator reads SQL files by path. Bundling moved the module that used to
-  // resolve them, so the build copies `drizzle/` next to the bundle and this points
-  // the migrator at it — before anything opens a database.
-  if (!process.env.MIGRATIONS_DIR) {
-    process.env.MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "drizzle");
-  }
 
   // A dry start proves the bundle can actually run, without touching a database or
   // the chain. `pnpm smoke:prod` runs it in a fresh clone on every push.
@@ -136,6 +147,36 @@ async function dryStart(): Promise<void> {
     process.exit(1);
   }
   log(`resolved ${RUNTIME_REQUIRES.length} runtime requires`);
+
+  // The migrations, resolved exactly the way production resolves them — through the
+  // indexer's own function, so this cannot pass while the real path is wrong. Reading
+  // the journal is the specific check: `drizzle/` can exist with its .sql files and
+  // still be useless, because drizzle-kit reads meta/_journal.json to know the order
+  // and that is what a copy with the wrong glob silently drops.
+  const { migrationsDir } = await import("@relay/indexer");
+  const dir = migrationsDir();
+  const journalPath = path.join(dir, "meta", "_journal.json");
+  log(`migrations folder: ${dir}`);
+  if (!existsSync(dir)) {
+    log(`FAIL — the migrations folder does not exist. The build must copy drizzle/ next to the bundle.`);
+    process.exit(1);
+  }
+  if (!existsSync(journalPath)) {
+    log(`FAIL — ${path.relative(dir, journalPath)} is missing. The .sql files alone are not enough; drizzle reads the journal for their order.`);
+    process.exit(1);
+  }
+  const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries?: unknown[] };
+  const entries = journal.entries?.length ?? 0;
+  if (entries === 0) {
+    log("FAIL — the journal lists no migrations, so nothing would be applied");
+    process.exit(1);
+  }
+  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql"));
+  if (sql.length < entries) {
+    log(`FAIL — the journal lists ${entries} migrations but only ${sql.length} .sql files were copied`);
+    process.exit(1);
+  }
+  log(`migrations: ${entries} in the journal, ${sql.length} .sql files present`);
 
   // Build the real app against stub dependencies. This compiles every route's zod
   // schema through fast-json-stringify and ajv, which is the step that reaches for

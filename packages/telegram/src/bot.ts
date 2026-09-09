@@ -16,7 +16,11 @@ import { Bot, InlineKeyboard } from "grammy";
 import { copy, type MarketCardCopy } from "./copy.js";
 import { RelayApi, cents, intervalLabel, money, movePct, nextWindowOpen, oraclePrice, type Market } from "./relay.js";
 
-loadEnv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
+// Local development only; the deployed bot runs inside packages/server, which never
+// reads a file for its configuration. See packages/indexer/src/config.ts.
+if (process.env.NODE_ENV !== "production") {
+  loadEnv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
+}
 
 const TOKEN = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
 const API = (process.env.RELAY_API_URL ?? "http://localhost:8787").replace(/\/$/, "");

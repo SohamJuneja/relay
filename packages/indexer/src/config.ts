@@ -4,7 +4,20 @@ import { fileURLToPath } from "node:url";
 import { createPublicClient, http, type PublicClient } from "viem";
 import { ADDRESSES, COLLATERAL_DECIMALS, ENDPOINTS, KIT_VENUE_HINTS, networkForChainId, relayChain, type EcAddresses, type Network } from "@relay/core";
 
-dotenv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
+// Load .env for local development only.
+//
+// In production the host injects the environment, and there is no .env to read — but
+// "no file, so dotenv quietly does nothing" is the wrong reason for it to be
+// harmless. A deployed process should not be looking for a secrets file on disk at
+// all: if one ever appeared next to the bundle it would silently override what the
+// host configured, which is a very bad surprise to debug. So the load is skipped
+// outright when NODE_ENV is production.
+//
+// The path is resolved from this module, never from cwd — Render starts the server
+// from the repo root, not from the package.
+if (process.env.NODE_ENV !== "production") {
+  dotenv({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.env") });
+}
 
 const env = (k: string): string => (process.env[k] ?? "").trim();
 

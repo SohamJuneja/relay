@@ -66,51 +66,71 @@ try {
   if (!existsSync(migrations)) throw new Error("dist/drizzle is missing — the migrator would find nothing to apply");
 
   // The real test: start it. Every module loads, every generated require resolves,
-  // and the entry exits 0 on its own.
-  log("dry start (RELAY_DRY_START=1)");
+  // the migrations are where the migrator will look, and the entry exits 0 on its own.
+  //
+  // Run from SEVERAL working directories, because that is precisely what the last
+  // production failure turned on: a path that resolved correctly when the process
+  // happened to start inside the package, and pointed at nothing when Render started
+  // it from the repo root. Anything resolved from cwd passes one of these and fails
+  // another, which is the only way to catch it without deploying.
   const started = Date.now();
-  const child = spawn(process.execPath, [entry], {
-    cwd: clone,
-    env: {
-      ...process.env,
-      RELAY_DRY_START: "1",
-      NODE_ENV: "production",
-      // Nothing here is contacted in a dry start; they exist so config loading, which
-      // validates required variables, gets past its checks.
-      DATABASE_URL: "postgres://smoke:smoke@127.0.0.1:5432/smoke",
-      RPC_URL: process.env.RPC_URL ?? "https://dream-rpc.somnia.network",
-      NETWORK: "testnet",
-      TELEGRAM_BOT_TOKEN: "",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const cwds = [
+    ["repo root", clone],
+    ["package dir", path.join(clone, "packages", "server")],
+    ["an unrelated dir", tmpdir()],
+  ];
 
-  let out = "";
-  child.stdout.on("data", (d) => {
-    out += d;
-    process.stdout.write(d);
-  });
-  child.stderr.on("data", (d) => {
-    out += d;
-    process.stderr.write(d);
-  });
-
-  const code = await new Promise((resolve) => {
-    const kill = setTimeout(() => {
-      log("dry start did not exit within 90 s — killing");
-      child.kill("SIGKILL");
-      resolve(124);
-    }, 90_000);
-    child.on("exit", (c) => {
-      clearTimeout(kill);
-      resolve(c ?? 0);
+  for (const [label, dir] of cwds) {
+    log(`dry start from ${label} — ${dir}`);
+    const child = spawn(process.execPath, [entry], {
+      cwd: dir,
+      env: {
+        ...process.env,
+        RELAY_DRY_START: "1",
+        NODE_ENV: "production",
+        // Nothing here is contacted in a dry start; they exist so config loading,
+        // which validates required variables, gets past its checks.
+        DATABASE_URL: "postgres://smoke:smoke@127.0.0.1:5432/smoke",
+        RPC_URL: process.env.RPC_URL ?? "https://dream-rpc.somnia.network",
+        NETWORK: "testnet",
+        TELEGRAM_BOT_TOKEN: "",
+        // Deliberately absent: the bundle must locate its own migrations unaided.
+        MIGRATIONS_DIR: "",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     });
-  });
 
-  if (code !== 0) throw new Error(`dry start exited ${code}`);
-  if (/ERR_MODULE_NOT_FOUND|Cannot find (module|package)/i.test(out)) {
-    throw new Error("a module failed to resolve during the dry start");
+    let out = "";
+    child.stdout.on("data", (d) => {
+      out += d;
+      process.stdout.write(d);
+    });
+    child.stderr.on("data", (d) => {
+      out += d;
+      process.stderr.write(d);
+    });
+
+    const code = await new Promise((resolve) => {
+      const kill = setTimeout(() => {
+        log("dry start did not exit within 90 s — killing");
+        child.kill("SIGKILL");
+        resolve(124);
+      }, 90_000);
+      child.on("exit", (c) => {
+        clearTimeout(kill);
+        resolve(c ?? 0);
+      });
+    });
+
+    if (code !== 0) throw new Error(`dry start from ${label} exited ${code}`);
+    if (/ERR_MODULE_NOT_FOUND|Cannot find (module|package)/i.test(out)) {
+      throw new Error(`a module failed to resolve during the dry start from ${label}`);
+    }
+    if (!/migrations: \d+ in the journal/.test(out)) {
+      throw new Error(`the dry start from ${label} never confirmed the migrations journal`);
+    }
   }
+
   log(`dry start OK in ${((Date.now() - started) / 1000).toFixed(1)}s`);
   log("PASS — a fresh clone builds and the server's every import resolves");
 } catch (e) {

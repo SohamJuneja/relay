@@ -7,7 +7,7 @@
 // Only the things that must stay on disk are external: native modules, and anything
 // that reads its own package layout at runtime.
 import { build } from "esbuild";
-import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, cpSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,12 +57,34 @@ const result = await build({
   metafile: true,
 });
 
-// Migrations are read at runtime by drizzle's migrator, by path.
+// Migrations are read at run time by drizzle's migrator, by path, so they have to
+// travel with the bundle.
+//
+// The whole folder, not a glob of *.sql: drizzle reads meta/_journal.json to know
+// which migrations exist and in what order, and a copy that takes only the SQL files
+// produces a `drizzle/` that looks right and fails with "Can't find meta/_journal.json".
+// The assertions below exist because that is a silent build-time mistake with a
+// runtime-only symptom.
 const migrations = path.resolve(here, "../indexer/drizzle");
-if (existsSync(migrations)) {
-  cpSync(migrations, path.resolve(here, "dist/drizzle"), { recursive: true });
-  console.log("[server] copied migrations to dist/drizzle");
+const destMigrations = path.resolve(here, "dist/drizzle");
+if (!existsSync(migrations)) {
+  console.error(`[server] ${migrations} is missing — nothing to migrate with`);
+  process.exit(1);
 }
+cpSync(migrations, destMigrations, { recursive: true });
+
+const journal = path.join(destMigrations, "meta", "_journal.json");
+if (!existsSync(journal)) {
+  console.error("[server] copied drizzle/ but meta/_journal.json is not in it");
+  process.exit(1);
+}
+const entries = JSON.parse(readFileSync(journal, "utf8")).entries ?? [];
+const sqlFiles = readdirSync(destMigrations).filter((f) => f.endsWith(".sql"));
+if (entries.length === 0 || sqlFiles.length < entries.length) {
+  console.error(`[server] journal lists ${entries.length} migrations, ${sqlFiles.length} .sql files copied`);
+  process.exit(1);
+}
+console.log(`[server] copied ${sqlFiles.length} migrations + journal to dist/drizzle`);
 
 const bytes = readFileSync(out).length;
 writeFileSync(path.resolve(here, "dist/meta.json"), JSON.stringify(result.metafile));

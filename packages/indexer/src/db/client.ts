@@ -30,13 +30,24 @@ export interface DbHandle {
 /**
  * Where the checked-in SQL migrations live.
  *
- * Resolved relative to this file in development. A bundled build moves this module
- * into one file somewhere else entirely, so the deployment copies `drizzle/` next to
- * the bundle and points MIGRATIONS_DIR at it.
+ * A FUNCTION, not a constant, and that distinction was a production failure. As a
+ * module-level const it was evaluated when this module loaded, which in the bundled
+ * server happens before `main()` gets a chance to set MIGRATIONS_DIR — so the
+ * override never applied, the fallback resolved to a directory that does not exist
+ * next to the bundle, and the migrator died on `Can't find meta/_journal.json`.
+ *
+ * Reading the environment at call time also means nothing here depends on the
+ * process's working directory. Render starts the server from the repo root, so any
+ * cwd-relative path would resolve somewhere else entirely.
  */
-const MIGRATIONS_DIR = process.env.MIGRATIONS_DIR
-  ? path.resolve(process.env.MIGRATIONS_DIR)
-  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../drizzle");
+export function migrationsDir(): string {
+  const override = process.env.MIGRATIONS_DIR;
+  if (override) return path.resolve(override);
+  // Development: this file is packages/indexer/src/db/client.ts, so the migrations
+  // are two levels up. In a bundle every module shares the bundle's own URL, which
+  // is why the deployment sets the override instead of relying on this.
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../drizzle");
+}
 
 /**
  * Query parameters that belong to the connection string but not to the server.
@@ -105,7 +116,7 @@ export async function openDb(url: string): Promise<DbHandle> {
       db,
       kind: "pglite",
       url,
-      migrate: () => migratePglite(db, { migrationsFolder: MIGRATIONS_DIR }),
+      migrate: () => migratePglite(db, { migrationsFolder: migrationsDir() }),
       close: () => client.close(),
     };
   }
@@ -132,7 +143,7 @@ export async function openDb(url: string): Promise<DbHandle> {
     db,
     kind: "postgres",
     url,
-    migrate: () => migratePg(db, { migrationsFolder: MIGRATIONS_DIR }),
+    migrate: () => migratePg(db, { migrationsFolder: migrationsDir() }),
     close: () => client.end({ timeout: 5 }),
   };
 }
