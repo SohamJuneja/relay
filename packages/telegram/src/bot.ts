@@ -15,6 +15,7 @@ import path from "node:path";
 import { Bot, InlineKeyboard } from "grammy";
 import { copy, type MarketCardCopy } from "./copy.js";
 import { RelayApi, cents, intervalLabel, money, movePct, nextWindowOpen, oraclePrice, type Market } from "./relay.js";
+import { runPolling } from "./polling.js";
 
 // Local development only; the deployed bot runs inside packages/server, which never
 // reads a file for its configuration. See packages/indexer/src/config.ts.
@@ -163,5 +164,17 @@ if (DRY_RUN) {
   void scheduleLoop();
 } else if (bot) {
   void scheduleLoop();
-  await bot.start({ onStart: (me) => log(`listening as @${me.username}`) });
+  // Polling is the process's long-running work, not a step on the way to being
+  // started: `bot.start()` resolves when polling STOPS. The supervisor proves the
+  // token with one getMe, reports ready, and restarts polling with backoff if it
+  // comes back — grammY rethrows on a 409 Conflict, which is what an overlapping
+  // second instance looks like, and nothing inside grammY retries after that.
+  const polling = runPolling(bot, { log });
+  await polling.ready;
+  const shutdown = (signal: string) => {
+    log(`${signal} — stopping`);
+    void polling.stop().then(() => process.exit(0));
+  };
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }

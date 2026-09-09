@@ -36,6 +36,10 @@
     "./relay": {
       "types": "./src/relay.ts",
       "default": "./src/relay.ts"
+    },
+    "./polling": {
+      "types": "./src/polling.ts",
+      "default": "./src/polling.ts"
     }
   }
 }

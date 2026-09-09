@@ -4,11 +4,20 @@
 // the service starts, which is a chicken-and-egg on a platform that assigns the URL
 // at deploy time. Long polling just works, and at this volume costs nothing.
 //
+// Polling is a LONG-RUNNING TASK, not a startup step. `bot.start()` resolves when
+// polling stops, so awaiting it here would mean the server never finishes booting,
+// and any timeout wrapped around it would report a failure for a healthy bot. The
+// supervisor in @relay/telegram/polling owns that distinction, and restarts polling
+// with backoff when grammY rethrows — which it does on a 409 Conflict, the ordinary
+// consequence of two instances overlapping during a deploy.
+//
 // Without TELEGRAM_BOT_TOKEN this does nothing at all and says so once. That is the
 // normal state for a deployment that has not been given a bot.
 
 export interface BotHandle {
   stop(): Promise<void>;
+  /** Whether long polling is currently supervised. False when there is no token. */
+  running(): boolean;
 }
 
 export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
@@ -17,16 +26,22 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
 
   if (!token) {
     log("no TELEGRAM_BOT_TOKEN — not starting");
-    return { stop: async () => undefined };
+    return { stop: async () => undefined, running: () => false };
   }
 
   let stopped = false;
   let stopFn: (() => Promise<void>) | null = null;
+  let isRunning = () => false;
 
   // Imported lazily so a deployment without a bot never loads grammY at all — on a
   // 512 MB box, a dependency you do not use is memory you do not have.
   const started = (async () => {
-    const [{ Bot, InlineKeyboard }, { copy }, relay] = await Promise.all([import("grammy"), import("@relay/telegram/copy"), import("@relay/telegram/relay")]);
+    const [{ Bot, InlineKeyboard }, { copy }, relay, { runPolling }] = await Promise.all([
+      import("grammy"),
+      import("@relay/telegram/copy"),
+      import("@relay/telegram/relay"),
+      import("@relay/telegram/polling"),
+    ]);
 
     const api = new relay.RelayApi(process.env.RELAY_API_URL ?? `http://127.0.0.1:${process.env.PORT || 8787}`);
     const miniapp = (process.env.MINIAPP_URL ?? process.env.TELEGRAM_MINIAPP_URL ?? "").replace(/\/$/, "");
@@ -72,8 +87,6 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     });
     bot.catch((e) => log("handler error:", e.message));
 
-    stopFn = async () => bot.stop();
-
     // The scheduler, aligned to the venue's window boundaries.
     const chatId = (process.env.TELEGRAM_CHAT_ID ?? "").trim();
     const intervalSec = Number(process.env.TELEGRAM_SCHEDULE_INTERVAL_SEC ?? 900);
@@ -108,10 +121,17 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     })();
 
     log(`long polling · mini-app ${miniapp || "(not set)"}${canOpen ? "" : " (not https — buttons degrade to links)"}`);
-    await bot.start({ onStart: (me) => log(`listening as @${me.username}`) });
+
+    // Launch polling under the supervisor and wait only for `ready`, which resolves
+    // after one getMe. The poller itself runs until stop() and is never awaited here.
+    const polling = runPolling(bot, { log });
+    stopFn = async () => polling.stop();
+    isRunning = () => polling.running();
+    await polling.ready;
   })().catch((e) => log(`failed to start: ${(e as Error).message}`));
 
   return {
+    running: () => isRunning(),
     async stop() {
       stopped = true;
       await stopFn?.().catch(() => undefined);
