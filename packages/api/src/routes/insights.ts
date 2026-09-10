@@ -151,7 +151,7 @@ export function registerInsights(app: App, deps: ApiDeps): void {
         // bar and invents an axis around it — which is why the dashboard's "routed
         // notional per hour" was labelled Dec 2026 … Jun 2029. The range is the
         // question the reader asked; the empty hours are part of the answer.
-        byHour: hourBuckets(since, req.query.hours, rowsOf(hourQ), (r) => ({
+        byHour: hourBuckets(Math.floor(Date.now() / 1000), req.query.hours, rowsOf(hourQ), (r) => ({
           fills: num(r.fills),
           notional: money(r.notional),
           uniqueWallets: num(r.wallets),

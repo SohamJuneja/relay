@@ -14,10 +14,9 @@ const NOW_HOUR = 1789027200;
 
 describe("hourBuckets", () => {
   it("renders 24 buckets with one non-zero for a single fill in a 24 h range", () => {
-    const since = NOW_HOUR - 23 * HOUR;
     const rows = [{ hour_ts: NOW_HOUR - 5 * HOUR, fills: 1, notional: "1347318", wallets: 1 }];
 
-    const out = hourBuckets(since, 24, rows, (r) => ({
+    const out = hourBuckets(NOW_HOUR, 24, rows, (r) => ({
       fills: Number(r.fills),
       notional: Number(r.notional) / 1e6,
       uniqueWallets: Number(r.wallets),
@@ -34,35 +33,46 @@ describe("hourBuckets", () => {
   });
 
   it("covers exactly the requested count for 6 h and 7 d", () => {
-    expect(hourBuckets(NOW_HOUR - 5 * HOUR, 6, [], () => ({ fills: 0 }))).toHaveLength(6);
-    expect(hourBuckets(NOW_HOUR - 167 * HOUR, 168, [], () => ({ fills: 0 }))).toHaveLength(168);
+    expect(hourBuckets(NOW_HOUR, 6, [], () => ({ fills: 0 }))).toHaveLength(6);
+    expect(hourBuckets(NOW_HOUR, 168, [], () => ({ fills: 0 }))).toHaveLength(168);
+  });
+
+  it("ends on the hour in progress, so a fill placed a minute ago is on the chart", () => {
+    // The regression this exists for: anchoring on `since` ended the range an hour
+    // short and a two-minute-old fill landed outside it — 24 buckets, 0 non-zero.
+    const nowish = NOW_HOUR + 35 * 60;
+    const out = hourBuckets(nowish, 24, [{ hour_ts: nowish, fills: 1 }], (r) => ({ fills: Number(r.fills) }));
+    expect(out).toHaveLength(24);
+    expect(out[out.length - 1]!.hourTs).toBe(NOW_HOUR);
+    expect(out[out.length - 1]!.fills).toBe(1);
+    expect(out[0]!.hourTs).toBe(NOW_HOUR - 23 * HOUR);
   });
 
   it("is contiguous, ascending, and exactly one hour apart", () => {
-    const out = hourBuckets(NOW_HOUR - 23 * HOUR, 24, [], () => ({ fills: 0 }));
+    const out = hourBuckets(NOW_HOUR, 24, [], () => ({ fills: 0 }));
     for (let i = 1; i < out.length; i++) {
       expect(out[i]!.hourTs - out[i - 1]!.hourTs).toBe(HOUR);
     }
     expect(out[0]!.hourTs).toBeLessThan(out[out.length - 1]!.hourTs);
   });
 
-  it("snaps a mid-hour `since` down to its hour boundary", () => {
+  it("snaps a mid-hour end down to its hour boundary", () => {
     const out = hourBuckets(NOW_HOUR + 1799, 3, [], () => ({ fills: 0 }));
-    expect(out[0]!.hourTs).toBe(NOW_HOUR);
-    expect(out[0]!.hourTs % HOUR).toBe(0);
+    expect(out[out.length - 1]!.hourTs).toBe(NOW_HOUR);
+    expect(out.every((b) => b.hourTs % HOUR === 0)).toBe(true);
   });
 
   it("snaps a row's timestamp to its bucket rather than dropping it", () => {
     // fills.block_ts is a real block time, not an hour boundary.
     const rows = [{ hour_ts: NOW_HOUR + 1234, fills: 3 }];
-    const out = hourBuckets(NOW_HOUR, 2, rows, (r) => ({ fills: Number(r.fills) }));
-    expect(out[0]!.fills).toBe(3);
-    expect(out[1]!.fills).toBe(0);
+    const out = hourBuckets(NOW_HOUR + 1234, 2, rows, (r) => ({ fills: Number(r.fills) }));
+    expect(out[1]!.fills).toBe(3);
+    expect(out[0]!.fills).toBe(0);
   });
 
   it("ignores rows outside the range instead of widening it", () => {
     const rows = [{ hour_ts: NOW_HOUR - 500 * HOUR, fills: 9 }];
-    const out = hourBuckets(NOW_HOUR - 23 * HOUR, 24, rows, (r) => ({ fills: Number(r.fills) }));
+    const out = hourBuckets(NOW_HOUR, 24, rows, (r) => ({ fills: Number(r.fills) }));
     expect(out).toHaveLength(24);
     expect(out.every((b) => b.fills === 0)).toBe(true);
   });
