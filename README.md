@@ -125,6 +125,7 @@ Then `pnpm console:dev` (:5179), `pnpm demo:dev` (:5180), `pnpm embed:dev` (:517
 | --- | --- |
 | [`packages/core`](packages/core) | Chain config, pinned ABIs, encoding, order maths. Browser-safe entry for the widget. |
 | [`packages/sdk`](packages/sdk) | Relay for agents: `createRelay(...).buy(...)` from Node, every order tagged `surface=agent` with the operator's builder code. Ships a 30-line example bot. |
+| [`packages/telegram-proxy`](packages/telegram-proxy) | A Cloudflare Worker forwarding the Telegram Bot API. Render's egress to `api.telegram.org` times out — DNS resolves, `ipv4first` is in effect, and the connection still dies in ~2 s while the same process reaches Neon and the RPC fine. |
 | [`packages/indexer`](packages/indexer) | Chain-only ingest: chunked `eth_getLogs`, reorg-safe, pool-epoch aware attribution, rollups. |
 | [`packages/api`](packages/api) | Fastify REST + WebSocket, zod-typed, OpenAPI 3.1 at `/docs`. |
 | [`packages/embed`](packages/embed/README.md) | The widget. 60 KB gzip including viem, Shadow DOM, instant wallet. |

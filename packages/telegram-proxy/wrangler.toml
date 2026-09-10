@@ -1,0 +1,17 @@
+# The Telegram Bot API proxy. See src/index.ts for why it exists.
+#
+#   npx wrangler secret put BOT_TOKEN     # paste the bot token, once
+#   npx wrangler deploy
+#
+# The token is a SECRET, never a var: `vars` are stored in plain text in the
+# dashboard and printed by `wrangler deploy`.
+name = "relay-telegram-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-09-10"
+
+# No logpush and no tail consumers: the request path carries the bot token, and the
+# body carries users' messages. Neither belongs in a log sink.
+logpush = false
+
+[observability]
+enabled = false

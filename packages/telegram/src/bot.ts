@@ -69,7 +69,10 @@ async function cardFor(asset: string, intervalSec = SCHEDULE_INTERVAL_SEC): Prom
 
 // ── the bot ────────────────────────────────────────────────────────────────
 
-const bot = TOKEN ? new Bot(TOKEN) : null;
+// TELEGRAM_API_ROOT points the Bot API at a proxy, for hosts that cannot reach
+// api.telegram.org directly. See packages/telegram-proxy.
+const API_ROOT = (process.env.TELEGRAM_API_ROOT ?? "").trim().replace(/\/$/, "");
+const bot = TOKEN ? (API_ROOT ? new Bot(TOKEN, { client: { apiRoot: API_ROOT } }) : new Bot(TOKEN)) : null;
 
 if (bot) {
   bot.command("start", async (ctx) => {

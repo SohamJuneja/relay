@@ -22,7 +22,8 @@
     "ajv-formats": "^3.0.1",
     "fast-json-stringify": "^7.0.1",
     "grammy": "^1.30.0",
-    "viem": "^2.21.0"
+    "viem": "^2.21.0",
+    "@relay/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

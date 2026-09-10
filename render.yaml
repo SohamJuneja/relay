@@ -48,6 +48,25 @@ services:
         sync: false
       - key: MINIAPP_URL
         sync: false
+      # Bot API base. This instance cannot reach api.telegram.org — DNS resolves,
+      # ipv4first is in effect, and the connection still times out in ~2 s while the
+      # same process talks to Neon and the RPC fine. packages/telegram-proxy is a
+      # Cloudflare Worker that forwards the Bot API; set this to its URL. Unset,
+      # grammY talks to Telegram directly.
+      - key: TELEGRAM_API_ROOT
+        sync: false
+
+      # The momentum example from packages/sdk, running on the server so the
+      # leaderboard keeps showing live agent flow. OFF unless set to "1": it spends
+      # real testnet collateral from PRIVATE_KEY's wallet, $1 every five minutes,
+      # for as long as the service runs. Needs RELAY_AGENT_PARTNER_ID and
+      # RELAY_AGENT_BUILDER to credit the flow to a partner.
+      - key: RELAY_EXAMPLE_AGENT
+        value: "0"
+      - key: RELAY_AGENT_PARTNER_ID
+        sync: false
+      - key: RELAY_AGENT_BUILDER
+        sync: false
       # Guards PATCH /v1/partners/:id, which corrects a public partner name. Absent
       # by default and the route refuses everything without it — a rename endpoint
       # that falls open is worse than no rename endpoint.

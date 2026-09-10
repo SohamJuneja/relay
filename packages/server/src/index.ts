@@ -24,6 +24,7 @@ import { buildApp } from "@relay/api/app";
 import { createDeps } from "@relay/api/deps";
 import { startIndexer } from "./indexer.js";
 import { startBot } from "./bot.js";
+import { startExampleAgent } from "./example-agent.js";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[server]", ...a);
 
@@ -111,6 +112,9 @@ async function main(): Promise<void> {
   const indexer = startIndexer({ db: deps.db, client: deps.client, log });
   const bot = startBot({ log });
   botHandle = bot;
+  // Off unless RELAY_EXAMPLE_AGENT=1. See example-agent.ts: it spends real testnet
+  // collateral from the server's wallet on a timer.
+  const agent = startExampleAgent({ log });
 
   let stopping = false;
   const stop = async (signal: string) => {
@@ -120,7 +124,7 @@ async function main(): Promise<void> {
     // Stop accepting first, then let the loops finish their current chunk. The
     // indexer's cursor only advances with the rows it wrote, so a mid-chunk exit
     // costs a re-scan, never a gap.
-    const done = await Promise.allSettled([app.close(), indexer.stop(), bot.stop()]);
+    const done = await Promise.allSettled([app.close(), indexer.stop(), bot.stop(), agent.stop()]);
     for (const [i, r] of done.entries()) if (r.status === "rejected") log(`shutdown step ${i} failed:`, r.reason);
     await deps.close().catch((e) => log("pool close failed:", e));
     log("stopped");

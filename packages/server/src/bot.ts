@@ -113,7 +113,14 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
       });
     };
 
-    const bot = new Bot(token);
+    // TELEGRAM_API_ROOT points the Bot API at a proxy. This host cannot reach
+    // api.telegram.org — measured: DNS resolves both families, ipv4first is in
+    // effect, and the connection still ETIMEDOUTs in ~2 s while the same instance
+    // talks to Neon and the Somnia RPC without trouble. Unset, grammY uses Telegram
+    // directly, which is right anywhere the route works.
+    const apiRoot = (process.env.TELEGRAM_API_ROOT ?? "").trim().replace(/\/$/, "");
+    const bot = apiRoot ? new Bot(token, { client: { apiRoot } }) : new Bot(token);
+    if (apiRoot) log(`Bot API via ${apiRoot}`);
 
     bot.command("start", async (ctx) => {
       const kb = keyboard(copy.start.button);
