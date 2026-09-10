@@ -25,6 +25,11 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
   let ticker: PriceTicker | null = null;
 
   const run = async (): Promise<void> => {
+    // A restart makes a fresh ticker, so the previous one must go first or the process
+    // ends up with two WebSocket subscriptions writing the same candles.
+    await ticker?.stop().catch(() => undefined);
+    ticker = null;
+
     const st = await loadState(db);
     const deps = { cfg, client, db, log };
 
@@ -79,7 +84,34 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
     }
   };
 
-  const loop = run().catch((e) => log(`fatal: ${(e as Error).message}`));
+  // Supervised, not fire-and-forget. `run()` catches errors inside its tail loop, but
+  // everything before that loop — loadState, and the whole backfill — was unguarded,
+  // so a single failed chunk rejected run() and the indexer was gone for the life of
+  // the process. It logged one `fatal:` line and the cursor never moved again, which
+  // from outside is indistinguishable from an indexer that is merely behind.
+  //
+  // Restarting is cheap and correct: the cursor advances only with the rows a chunk
+  // wrote, in the same transaction, so a restart resumes from the last complete chunk
+  // and at worst re-reads one.
+  const loop = (async () => {
+    let delay = 1_000;
+    while (!stopping) {
+      const startedAt = Date.now();
+      try {
+        await run();
+        if (stopping) return;
+        log("loop returned unexpectedly — restarting");
+      } catch (e) {
+        if (stopping) return;
+        log(`failed: ${(e as Error).message.split("\n")[0]} — restarting`);
+      }
+      // A run that stayed up for a minute was healthy; only repeated fast failures
+      // should back off, so that a persistent fault does not spin the CPU.
+      if (Date.now() - startedAt >= 60_000) delay = 1_000;
+      await sleep(delay, () => stopping);
+      delay = Math.min(delay * 2, 60_000);
+    }
+  })().catch((e) => log(`supervisor crashed: ${(e as Error).message}`));
 
   return {
     async stop() {
