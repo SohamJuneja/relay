@@ -59,6 +59,7 @@ export function migrationsDir(): string {
  * is a libpq client concern with no server-side meaning at all.
  */
 const CLIENT_ONLY_PARAMS = new Set(["sslmode", "channel_binding", "sslcert", "sslkey", "sslrootcert", "pgbouncer", "application_name", "options"]);
+const ALLOWED_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 
 export interface ParsedDbUrl {
   /** The URL with client-only parameters removed, safe to hand to postgres.js. */
@@ -83,6 +84,17 @@ export function parseDbUrl(raw: string): ParsedDbUrl {
     return { url: raw, describe: "(unparseable connection string)", ssl: "prefer" };
   }
 
+  // Fail on the scheme rather than on DNS. A typo in the scheme still parses as a
+  // URL, and postgres.js then resolves something that was never a hostname — the
+  // error you get back is `ENOTFOUND neopostgresql`, which reads like a network
+  // problem and is not one. The value is never echoed: it carries a password.
+  if (!ALLOWED_PROTOCOLS.has(u.protocol)) {
+    throw new Error(
+      `DATABASE_URL has scheme "${u.protocol}//" — it must be "postgresql://" or "postgres://". ` +
+        `Check for a stray prefix before the scheme. The value is not shown here because it contains a password.`,
+    );
+  }
+
   const sslmode = u.searchParams.get("sslmode");
   // Neon, Supabase and every other hosted Postgres require TLS. `disable` is the only
   // value that should turn it off, and a local docker instance simply has no param.
@@ -92,10 +104,17 @@ export function parseDbUrl(raw: string): ParsedDbUrl {
     if (CLIENT_ONLY_PARAMS.has(key)) u.searchParams.delete(key);
   }
 
-  const db = u.pathname.replace(/^\//, "") || "postgres";
+  // Strip every leading slash, not one. `postgresql://host//user:pw@real-host/db`
+  // parses as host "host" with the REST OF THE CONNECTION STRING as the path, and
+  // stripping a single slash left the password sitting in `describe` — which is the
+  // one field documented as safe to log. A database name is a bare identifier; if
+  // what is left does not look like one, the string is malformed and nothing from it
+  // is printed.
+  const db = u.pathname.replace(/^\/+/, "") || "postgres";
+  const safeDb = /^[A-Za-z0-9_$-]+$/.test(db) ? db : "(unexpected database name)";
   return {
     url: u.toString(),
-    describe: `${u.hostname}${u.port ? `:${u.port}` : ""}/${db}`,
+    describe: `${u.hostname}${u.port ? `:${u.port}` : ""}/${safeDb}`,
     ssl,
   };
 }
