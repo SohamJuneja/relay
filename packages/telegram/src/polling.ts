@@ -83,7 +83,22 @@ export interface PollingHandle {
 const isFatalAuth = (e: unknown): boolean =>
   typeof e === "object" && e !== null && (e as { error_code?: number }).error_code === 401;
 
-const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+/**
+ * The message, plus whatever the thrown thing is wrapping.
+ *
+ * grammY's HttpError says only "Network request for 'getMe' failed!" and keeps the
+ * real cause on `.error` — which is where the useful half lives: an ENOTFOUND, a
+ * certificate problem, a 403 from something in the path. Reporting the wrapper alone
+ * turns a specific failure into an unactionable one.
+ */
+const message = (e: unknown): string => {
+  if (!(e instanceof Error)) return String(e);
+  const inner = (e as { error?: unknown; cause?: unknown }).error ?? (e as { cause?: unknown }).cause;
+  if (!inner) return e.message;
+  const innerMsg = inner instanceof Error ? `${inner.name}: ${inner.message}` : String(inner);
+  const code = (inner as { cause?: { code?: string } })?.cause?.code ?? (inner as { code?: string })?.code;
+  return `${e.message} — ${innerMsg}${code ? ` (${code})` : ""}`;
+};
 
 /** Reject after `ms` rather than waiting on a promise that may never settle. */
 async function withTimeout<T>(p: Promise<T>, ms: number, why: string): Promise<T> {
