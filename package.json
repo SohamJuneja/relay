@@ -9,7 +9,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r --if-present typecheck",
+    "typecheck": "pnpm --filter @relay/embed build:types && tsc -p tsconfig.json --noEmit && pnpm -r --if-present typecheck",
+    "_typecheck_note": "The widget's .d.ts files come first on purpose. @relay/embed resolves its `types` condition to dist/types, and when that build artifact is absent TypeScript falls back to the `default` condition and reads src/index.ts instead — so the console, which is React, ends up typechecking a Preact component and reports dozens of errors about `class` not being `className`. It passes on any machine that has built the widget and fails in every fresh clone, which is exactly what CI is.",
     "probe": "tsx scripts/probe.ts",
     "test": "pnpm -r --if-present test",
     "wallet": "tsx scripts/wallet.ts",
