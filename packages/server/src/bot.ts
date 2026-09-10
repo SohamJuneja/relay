@@ -156,6 +156,16 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     const bot = apiRoot ? new Bot(token, { client: { apiRoot } }) : new Bot(token);
     if (apiRoot) log(`Bot API via ${apiRoot}`);
 
+    // Every update, before any handler — and it has to be registered BEFORE them.
+    // grammY runs middleware in registration order, and a command handler that
+    // matches without calling next() ends the chain: registered after the commands,
+    // this never ran, so /health reported lastUpdateAt null while the bot was
+    // replying to /start perfectly well. A diagnostic that lies is worse than none.
+    bot.use(async (_ctx, next) => {
+      lastUpdateAt = Date.now();
+      await next();
+    });
+
     bot.command("start", async (ctx) => {
       const kb = keyboard(copy.start.button);
       await ctx.reply(copy.start.text, { parse_mode: "HTML", ...(kb ? { reply_markup: kb } : {}) });
@@ -173,13 +183,6 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
       const kb = keyboard(copy.marketButton);
       await ctx.reply(text, { parse_mode: "HTML", ...(kb ? { reply_markup: kb } : {}) });
     });
-    // Every update, before any handler. This is the field that proves messages are
-    // actually arriving, as opposed to the poller merely believing it holds the slot.
-    bot.use(async (_ctx, next) => {
-      lastUpdateAt = Date.now();
-      await next();
-    });
-
     bot.catch((e) => log("handler error:", e.message));
 
     // The scheduler, aligned to the venue's window boundaries.
