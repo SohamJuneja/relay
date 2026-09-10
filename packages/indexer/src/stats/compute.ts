@@ -58,7 +58,7 @@ export function aggregateVenueDaily(rows: MarketAgg[], takersByGroup?: Map<strin
     g.notional += m.notional;
     if (m.fills === 0) {
       g.zeroFillWindows++;
-      if (m.restedBids > 0 && m.restedAsks > 0) g.quotedButUntakenWindows++;
+      if (isQuotedBothSides(m)) g.quotedButUntakenWindows++;
     }
     groups.set(key, g);
   }
@@ -68,25 +68,48 @@ export function aggregateVenueDaily(rows: MarketAgg[], takersByGroup?: Map<strin
 
 const rowsOf = (r: unknown): Record<string, unknown>[] => (Array.isArray(r) ? r : ((r as { rows?: Record<string, unknown>[] }).rows ?? []));
 
-/** Recompute stats_venue_daily for windows that expired in the last `days` days. */
-export async function computeVenueStats(db: Db, days = 3, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
-  const since = nowSec - days * 86400;
+/**
+ * The one definition of a quoted-but-untaken window.
+ *
+ * There were three copies of this: the daily rollup, the ad-hoc window endpoint, and
+ * inline SQL behind /v1/stats/overview. Two of them read `orders` rows directly,
+ * which stops meaning anything once orders age out of retention — a window older than
+ * ORDER_RETENTION_DAYS has no order rows left and silently counts as never-quoted. On
+ * the live site that put 34.5% in the headline KPI and 3.5% in the per-series table
+ * directly beneath it. Everything now goes through here.
+ */
+export const isQuotedBothSides = (m: { restedBids: number; restedAsks: number }): boolean => m.restedBids > 0 && m.restedAsks > 0;
+
+/**
+ * Per-market rows for every completed window in a range, with the latched
+ * had_bid/had_ask as the source of truth and the order rows only as a fallback for
+ * markets ingested before the latches existed.
+ *
+ * `venueId` omitted means every venue, which is what the daily rollup wants.
+ */
+export async function marketsInRange(
+  db: Db,
+  opts: { venueId?: string | undefined; sinceSec: number; untilSec: number },
+): Promise<MarketAgg[]> {
+  const { venueId, sinceSec, untilSec } = opts;
   const q = await db.execute(sql`
     select m.market_id, m.venue_id, m.asset, m.interval_sec, m.expiry,
-           coalesce(f.fills, 0)::int as fills, coalesce(f.notional, 0)::text as notional,
-           -- The latched flags, with a fallback to the order rows for markets ingested
-           -- before the flags existed. Once those age out the join costs nothing,
-           -- because there is nothing left to scan.
+           coalesce(f.fills, 0)::int as fills,
+           coalesce(f.notional, 0)::text as notional,
+           coalesce(f.takers, 0)::int as takers,
            (m.had_bid or coalesce(o.rested_bids, 0) > 0) as had_bid,
            (m.had_ask or coalesce(o.rested_asks, 0) > 0) as had_ask
     from markets m
-    left join lateral (select count(*) as fills, sum(notional) as notional from fills where fills.market_id = m.market_id) f on true
+    left join lateral (
+      select count(*) as fills, sum(notional) as notional, count(distinct taker_owner) as takers
+      from fills where fills.market_id = m.market_id) f on true
     left join lateral (
       select count(*) filter (where is_bid and rested_qty is not null and rested_qty > 0) as rested_bids,
              count(*) filter (where not is_bid and rested_qty is not null and rested_qty > 0) as rested_asks
       from orders where orders.market_id = m.market_id) o on true
-    where m.expiry >= ${since}::bigint and m.expiry <= ${nowSec}::bigint`);
-  const rows: MarketAgg[] = rowsOf(q).map((r) => ({
+    where m.expiry >= ${sinceSec}::bigint and m.expiry <= ${untilSec}::bigint
+      ${venueId ? sql`and m.venue_id = ${venueId.toLowerCase()}` : sql``}`);
+  return rowsOf(q).map((r) => ({
     marketId: String(r.market_id),
     venueId: String(r.venue_id),
     asset: String(r.asset),
@@ -94,10 +117,42 @@ export async function computeVenueStats(db: Db, days = 3, nowSec = Math.floor(Da
     expiry: Number(r.expiry),
     fills: Number(r.fills),
     notional: BigInt(String(r.notional)),
-    uniqueTakers: 0,
+    uniqueTakers: Number(r.takers),
     restedBids: r.had_bid ? 1 : 0,
     restedAsks: r.had_ask ? 1 : 0,
   }));
+}
+
+export interface WindowSummary {
+  windows: number;
+  zeroFillWindows: number;
+  quotedButUntakenWindows: number;
+  fills: number;
+  notional: bigint;
+}
+
+/** Sum a set of market rows. Used for the venue total and for every series group. */
+export function summarise(rows: MarketAgg[]): WindowSummary {
+  const out: WindowSummary = { windows: 0, zeroFillWindows: 0, quotedButUntakenWindows: 0, fills: 0, notional: 0n };
+  for (const m of rows) {
+    out.windows++;
+    out.fills += m.fills;
+    out.notional += m.notional;
+    if (m.fills === 0) {
+      out.zeroFillWindows++;
+      if (isQuotedBothSides(m)) out.quotedButUntakenWindows++;
+    }
+  }
+  return out;
+}
+
+
+/** Recompute stats_venue_daily for windows that expired in the last `days` days. */
+export async function computeVenueStats(db: Db, days = 3, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
+  const since = nowSec - days * 86400;
+  // Every venue, because this rollup is chain-wide. Same query, same predicate and
+  // same latch fallback as the window endpoint and the venue total.
+  const rows = await marketsInRange(db, { sinceSec: since, untilSec: nowSec });
   // unique takers per group
   const tq = await db.execute(sql`
     select m.venue_id, m.asset, m.interval_sec, to_char(to_timestamp(m.expiry) at time zone 'UTC', 'YYYY-MM-DD') as day, count(distinct f.taker_owner)::int as takers
@@ -138,54 +193,47 @@ export interface VenueWindowRow {
  * against the Phase 0 probe's 6-hour figure.
  */
 export async function computeVenueWindow(db: Db, venueId: string, hours: number, nowSec = Math.floor(Date.now() / 1000)): Promise<VenueWindowRow[]> {
-  const since = nowSec - hours * 3600;
-  const q = await db.execute(sql`
-    select m.market_id, m.asset, m.interval_sec, m.expiry,
-           coalesce(f.fills, 0)::int as fills, coalesce(f.notional, 0)::text as notional, coalesce(f.takers, 0)::int as takers,
-           -- The latched flags first, with the order rows only as a fallback for
-           -- markets ingested before the flags existed.
-           --
-           -- This read the order rows ALONE, which quietly stopped being a measure of
-           -- anything once orders started aging out: a window older than
-           -- ORDER_RETENTION_DAYS has no order rows left, so it counted as "never
-           -- quoted" and quoted-but-untaken collapsed toward zero. The venue-wide
-           -- figure, computed from the latch, said 34% while this one said 3%.
-           (case when (m.had_bid or coalesce(o.rested_bids, 0) > 0) then 1 else 0 end)::int as rested_bids,
-           (case when (m.had_ask or coalesce(o.rested_asks, 0) > 0) then 1 else 0 end)::int as rested_asks
-    from markets m
-    left join lateral (select count(*) as fills, sum(notional) as notional, count(distinct taker_owner) as takers from fills where fills.market_id = m.market_id) f on true
-    left join lateral (
-      select count(*) filter (where is_bid and rested_qty is not null and rested_qty > 0) as rested_bids,
-             count(*) filter (where not is_bid and rested_qty is not null and rested_qty > 0) as rested_asks
-      from orders where orders.market_id = m.market_id) o on true
-    where m.venue_id = ${venueId.toLowerCase()} and m.expiry >= ${since}::bigint and m.expiry <= ${nowSec}::bigint`);
-  const groups = new Map<string, VenueWindowRow & { takerSet: Set<string> }>();
-  for (const r of rowsOf(q)) {
-    const key = `${r.asset}|${r.interval_sec}`;
-    const g = groups.get(key) ?? { asset: String(r.asset), intervalSec: Number(r.interval_sec), windows: 0, zeroFillWindows: 0, quotedButUntakenWindows: 0, fills: 0, notional: 0n, uniqueTakers: 0, takerSet: new Set<string>() };
-    const fills = Number(r.fills);
-    g.windows++;
-    g.fills += fills;
-    g.notional += BigInt(String(r.notional));
-    if (fills === 0) {
-      g.zeroFillWindows++;
-      if (Number(r.rested_bids) > 0 && Number(r.rested_asks) > 0) g.quotedButUntakenWindows++;
-    }
-    groups.set(key, g);
+  // Same rows, same predicate, same everything as the venue total and the daily
+  // rollup — the three used to be three queries and drifted apart.
+  const rows = await marketsInRange(db, { venueId, sinceSec: nowSec - hours * 3600, untilSec: nowSec });
+
+  const groups = new Map<string, MarketAgg[]>();
+  for (const m of rows) {
+    const key = `${m.asset}|${m.intervalSec}`;
+    const g = groups.get(key);
+    if (g) g.push(m);
+    else groups.set(key, [m]);
   }
+
+  const out: VenueWindowRow[] = [];
+  for (const [key, ms] of groups) {
+    const [asset, intervalSec] = key.split("|");
+    const sum = summarise(ms);
+    out.push({
+      asset: String(asset),
+      intervalSec: Number(intervalSec),
+      windows: sum.windows,
+      zeroFillWindows: sum.zeroFillWindows,
+      quotedButUntakenWindows: sum.quotedButUntakenWindows,
+      fills: sum.fills,
+      notional: sum.notional,
+      uniqueTakers: 0,
+    });
+  }
+
+  // Unique takers cannot be summed from per-market counts without double-counting a
+  // wallet that traded several windows, so it is its own query.
   const tq = await db.execute(sql`
     select m.asset, m.interval_sec, count(distinct f.taker_owner)::int as takers
     from fills f join markets m on m.market_id = f.market_id
-    where m.venue_id = ${venueId.toLowerCase()} and m.expiry >= ${since}::bigint and m.expiry <= ${nowSec}::bigint and f.taker_owner is not null
-    group by 1, 2`);
-  for (const r of rowsOf(tq)) {
-    const g = groups.get(`${r.asset}|${r.interval_sec}`);
-    if (g) g.uniqueTakers = Number(r.takers);
-  }
-  return [...groups.values()].map(({ takerSet: _t, ...g }) => g).sort((a, b) => (a.asset === b.asset ? a.intervalSec - b.intervalSec : a.asset.localeCompare(b.asset)));
+    where m.venue_id = ${venueId.toLowerCase()} and m.expiry >= ${nowSec - hours * 3600}::bigint and m.expiry <= ${nowSec}::bigint and f.taker_owner is not null
+    group by m.asset, m.interval_sec`);
+  const takers = new Map(rowsOf(tq).map((r) => [`${r.asset}|${Number(r.interval_sec)}`, Number(r.takers)]));
+  for (const r of out) r.uniqueTakers = takers.get(`${r.asset}|${r.intervalSec}`) ?? 0;
+
+  return out.sort((a, b) => a.asset.localeCompare(b.asset) || a.intervalSec - b.intervalSec);
 }
 
-/** stats_partner + stats_partner_hourly from fills attributed on the TAKER side. */
 export async function computePartnerStats(db: Db, feeBps: number): Promise<number> {
   const q = await db.execute(sql`
     select taker_partner_id as partner_id, count(*)::int as fills, coalesce(sum(notional),0)::text as notional,

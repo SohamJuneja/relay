@@ -10,8 +10,9 @@
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { hourBuckets } from "../hourly.js";
 import { eq, sql } from "drizzle-orm";
-import { partners } from "@relay/indexer";
+import { partners, marketsInRange, summarise } from "@relay/indexer";
 import { SURFACE } from "@relay/core";
 import type { App } from "../app.js";
 import type { ApiDeps } from "../deps.js";
@@ -143,7 +144,18 @@ export function registerInsights(app: App, deps: ApiDeps): void {
         })),
         bySeries: rowsOf(seriesQ).map((r) => ({ asset: String(r.asset), intervalSec: num(r.interval_sec), fills: num(r.fills), notional: money(r.notional) })),
         byDay: rowsOf(dayQ).map((r) => ({ day: String(r.day), fills: num(r.fills), notional: money(r.notional), uniqueWallets: num(r.wallets) })),
-        byHour: rowsOf(hourQ).map((r) => ({ hourTs: num(r.hour_ts), fills: num(r.fills), notional: money(r.notional), uniqueWallets: num(r.wallets) })),
+        // A fixed bucket per hour of the requested range, zero-filled.
+        //
+        // This returned only the hours that HAD fills. A partner with a single trade
+        // therefore got a single point, and a bar chart handed one x value draws one
+        // bar and invents an axis around it — which is why the dashboard's "routed
+        // notional per hour" was labelled Dec 2026 … Jun 2029. The range is the
+        // question the reader asked; the empty hours are part of the answer.
+        byHour: hourBuckets(since, req.query.hours, rowsOf(hourQ), (r) => ({
+          fills: num(r.fills),
+          notional: money(r.notional),
+          uniqueWallets: num(r.wallets),
+        })),
       };
     },
   );
@@ -332,21 +344,16 @@ export function registerInsights(app: App, deps: ApiDeps): void {
   const computeOverview = async () => {
     const venueId = deps.cfg.defaultVenueId.toLowerCase();
     const since = Math.floor(Date.now() / 1000) - 24 * 3600;
-    const [head, agg, windows, live, cursor, history] = await Promise.all([
+    const [head, agg, marketRows, live, cursor, history] = await Promise.all([
       deps.client.getBlockNumber(),
       deps.db.execute(sql`
         select count(*)::int as fills, coalesce(sum(f.notional),0)::text as notional, count(distinct f.taker_owner)::int as takers
         from fills f join markets m on m.market_id = f.market_id
         where m.venue_id = ${venueId} and f.block_ts >= ${since}::bigint`),
-      deps.db.execute(sql`
-        select count(*)::int as markets,
-               count(*) filter (where not exists (select 1 from fills f where f.market_id = m.market_id))::int as zero_fill,
-               count(*) filter (
-                 where not exists (select 1 from fills f where f.market_id = m.market_id)
-                   and m.had_bid and m.had_ask
-               )::int as untaken
-        from markets m
-        where m.venue_id = ${venueId} and m.expiry >= ${since}::bigint and m.expiry <= ${Math.floor(Date.now() / 1000)}::bigint`),
+      // The same rows the per-series table is built from, through the same function.
+      // This used to be its own SQL with its own idea of "quoted on both sides", which
+      // is how the KPI and the table directly beneath it came to disagree.
+      marketsInRange(deps.db, { venueId, sinceSec: since, untilSec: Math.floor(Date.now() / 1000) }),
       deps.db.execute(sql`select count(*)::int as live from markets where venue_id = ${venueId} and status = 1 and expiry > ${Math.floor(Date.now() / 1000)}::bigint`),
       // Filtered by network, not `limit 1`. There are two cursor rows now — the live
       // one and the history walk's — and an unfiltered pick returns whichever the
@@ -355,8 +362,8 @@ export function registerInsights(app: App, deps: ApiDeps): void {
       deps.db.execute(sql`select last_block, start_block from cursor where network = ${`${deps.cfg.network}:history`}`),
     ]);
     const a = rowsOf(agg)[0];
-    const w = rowsOf(windows)[0];
-    const markets24h = num(w?.markets);
+    const summary = summarise(marketRows);
+    const markets24h = summary.windows;
     const pct = (n: number, d: number) => (d === 0 ? null : Math.round((1000 * n) / d) / 10);
     const cursorBlock = Number(rowsOf(cursor)[0]?.last_block ?? 0) || null;
     const histRow = rowsOf(history)[0];
@@ -370,8 +377,8 @@ export function registerInsights(app: App, deps: ApiDeps): void {
       fills24h: num(a?.fills),
       notional24h: money(a?.notional),
       uniqueTakers24h: num(a?.takers),
-      zeroFillPct24h: pct(num(w?.zero_fill), markets24h),
-      quotedButUntakenPct24h: pct(num(w?.untaken), markets24h),
+      zeroFillPct24h: pct(summary.zeroFillWindows, markets24h),
+      quotedButUntakenPct24h: pct(summary.quotedButUntakenWindows, markets24h),
       liveMarkets: num(rowsOf(live)[0]?.live),
       cursorBlock,
       headBlock: Number(head),

@@ -67,6 +67,14 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
   const [tradeMarket, setTradeMarket] = useState<Market | null>(null);
   const [tradeSide, setTradeSide] = useState<Outcome | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Whether the first market lookup for the CURRENT series has settled.
+  //
+  // Without this there is no difference between "asked, and the venue has nothing"
+  // and "have not asked yet", and the widget renders the first as soon as it mounts:
+  // for the ~1.5 s before the first response every embed on every page said "No live
+  // BTC 15m window right now", which is a claim about the venue it had not yet made
+  // any request about.
+  const [loaded, setLoaded] = useState(false);
   const [claimable, setClaimable] = useState<{ total: number; claims: ClaimRow[]; outcomeToken: Address; binaryModule: Address } | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -135,11 +143,14 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
       if (!next) setCtx(null);
     } catch (e) {
       setLoadError((e as Error).message);
+    } finally {
+      setLoaded(true);
     }
   }, [api, asset, intervalSec, opts.venue]);
 
   useEffect(() => {
     setMarket(null);
+    setLoaded(false);
     setBook(null);
     setCtx(null);
     setPhase("trade");
@@ -652,7 +663,11 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
 
       {loadError ? <Notice tone="warn">Cannot reach the Relay API at <code>{api.base}</code>. {loadError}</Notice> : null}
 
-      {!market ? (
+      {!market && !loaded ? (
+        <p class="empty" aria-busy="true">
+          Loading the live {asset} {intervalLabel(intervalSec)} window…
+        </p>
+      ) : !market ? (
         <p class="empty">
           No live {asset} {intervalLabel(intervalSec)} window right now.
           <br />

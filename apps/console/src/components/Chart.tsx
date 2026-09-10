@@ -51,6 +51,24 @@ function useWidth(ref: React.RefObject<HTMLDivElement>): number {
   return w;
 }
 
+
+/**
+ * Hour-of-day labels in the VIEWER's timezone, with each midnight labelled by its
+ * date so a multi-day range still reads as a calendar.
+ *
+ * uPlot's `time: true` picks a granularity from the data extent, which is right for
+ * arbitrary series and wrong here: these are always hourly buckets, and when the
+ * caller passed a single point (the old sparse byHour) uPlot inferred a multi-year
+ * span and labelled the axis Dec 2026 … Jun 2029. The buckets are fixed now, and so
+ * is the label format. Values are unix SECONDS, as uPlot expects with time: true.
+ */
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function hourLabel(unixSec: number): string {
+  const d = new Date(unixSec * 1000);
+  if (d.getHours() === 0) return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+  return `${String(d.getHours()).padStart(2, "0")}:00`;
+}
+
 export interface BarSeries {
   label: string;
   values: number[];
@@ -110,7 +128,14 @@ export function TimeBars(props: {
       cursor: { y: false, points: { show: false } },
       scales: { x: { time: true }, y: { range: (_u, _min, max) => [0, Math.max(max, 1) * 1.08] } },
       axes: [
-        { stroke: ink3, grid: { show: false }, ticks: { show: false }, font: "11px var(--relay-font-ui)", size: 28 },
+        {
+          stroke: ink3,
+          grid: { show: false },
+          ticks: { show: false },
+          font: "11px var(--relay-font-ui)",
+          size: 28,
+          values: (_u, splits) => splits.map((v) => hourLabel(v)),
+        },
         { stroke: ink3, grid: { stroke: line, width: 1 }, ticks: { show: false }, font: "11px var(--relay-font-ui)", size: 52, values: (_u, vals) => vals.map((v) => fmt(v)) },
       ],
       series: [
