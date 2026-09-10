@@ -46,6 +46,7 @@ export function optionsFromElement(el: HTMLElement, override: RelayOptions = {})
     ...(amounts && amounts.length ? { amounts } : {}),
     ...(d.brand === "false" ? { brand: false } : {}),
     ...(d.question === "false" ? { question: false } : {}),
+    ...(d.autoClaim === "false" ? { autoClaim: false } : {}),
     ...override,
   };
   return out;

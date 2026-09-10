@@ -7,6 +7,7 @@ import { claim, collateralBalance, faucet, placeOrder, quote, readBalances, read
 import { countdown, fromRaw, intervalLabel, money, pct, shortAddr, toRaw, usd } from "./format.js";
 import { Rpc } from "./rpc.js";
 import type { Book, ClaimRow, Market, OnboardStep, Outcome, PartnerPublic, Position, PriceTick, RelayOptions, StepState, WsEvent } from "./types.js";
+import { claimMode } from "./autoclaim.js";
 import { chainInfo, connectInjected, forgetInstantWallet, hasInstantWallet, injectedProvider, loadOrCreateInstantWallet, type RelayWallet } from "./wallet.js";
 
 const ASSETS = ["BTC", "ETH"];
@@ -535,9 +536,10 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
     }
   }
 
-  async function claimAll(rows: ClaimRow[]): Promise<void> {
+  async function claimAll(rows: ClaimRow[], o: { auto?: boolean } = {}): Promise<void> {
     if (!wallet || !claimable) return;
-    setClaiming("claiming");
+    const total = claimable.total;
+    setClaiming(o.auto ? `auto:${total}` : "claiming");
     setError(null);
     try {
       const res = await claim({
@@ -546,9 +548,9 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
         binaryModule: claimable.binaryModule,
         outcomeToken: claimable.outcomeToken,
         claims: rows,
-        onProgress: (d, t) => setClaiming(t > 1 ? `claiming ${d}/${t}` : "claiming"),
+        onProgress: (d, t) => setClaiming(o.auto ? `auto:${total}:${d}:${t}` : t > 1 ? `claiming ${d}/${t}` : "claiming"),
       });
-      emit("claim", { hashes: res.hashes, batched: res.batched, count: rows.length });
+      emit("claim", { hashes: res.hashes, batched: res.batched, count: rows.length, auto: o.auto === true });
       setClaimed({ hashes: res.hashes, count: rows.length });
       setClaiming(null);
       await refreshClaimable();
@@ -558,6 +560,28 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
       setError(e instanceof TradeError ? e.message : (e as Error).message);
     }
   }
+
+  // ── auto-claim ──
+  //
+  // A won position that sits unredeemed because nobody tapped a button is money the
+  // reader believes they have and does not. The instant wallet's key is in this
+  // browser and already signs every trade, so redeeming needs no consent the trade did
+  // not already have. Injected wallets are excluded in claimMode, not here.
+  const autoClaimOn = opts.autoClaim !== false;
+  const autoClaimBusy = useRef(false);
+  useEffect(() => {
+    const mode = claimMode({ kind: wallet?.kind ?? null, total: claimable?.total ?? 0, enabled: autoClaimOn });
+    if (mode !== "auto" || autoClaimBusy.current || claiming !== null) return;
+    const rows = claimable?.claims ?? [];
+    if (!rows.length) return;
+    autoClaimBusy.current = true;
+    // Every redeemable position for this wallet, not just the one just traded — the
+    // positions strip lists them all and leaving the rest for later is the same bug
+    // in a smaller box. `claim` walks them in order and reports progress.
+    void claimAll(rows, { auto: true }).finally(() => {
+      autoClaimBusy.current = false;
+    });
+  }, [wallet, claimable, claiming, autoClaimOn]);
 
   // ── position / result for the market we traded ──
   //
@@ -642,6 +666,17 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
     [positions, asset, now],
   );
   const claimRows = claimable?.claims ?? [];
+  // `claiming` carries either a plain label or an auto-claim marker,
+  // "auto:<total>[:done:total]". Rendering is the only thing that needs to read it.
+  const autoClaimLabel = (() => {
+    if (!claiming?.startsWith("auto:")) return null;
+    const [, total, done, of] = claiming.split(":");
+    const amount = usd(Number(total));
+    return of && Number(of) > 1 ? `Claiming ${amount}… (${done}/${of})` : `Claiming ${amount}…`;
+  })();
+  const autoClaiming = autoClaimLabel !== null;
+
+
 
   return (
     <div class="card" part="card">
@@ -708,15 +743,24 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
               {won || settledMarket?.voided ? (
                 claimed !== null ? (
                   <dl class="rows" style="padding:0">
-                    <Row label="Claimed" value={claimed.hashes[0] ? <TxLink hash={claimed.hashes[0]} explorer={explorer} /> : "✓"} tone="win" />
+                    <Row
+                      label={claimed.count > 1 ? `Claimed ${claimed.count} positions` : "Claimed"}
+                      value={claimed.hashes[0] ? <>{<TxLink hash={claimed.hashes[0]} explorer={explorer} />} ✓</> : "✓"}
+                      tone="win"
+                    />
                   </dl>
                 ) : (
-                  <button type="button" class="btn" disabled={claiming !== null || !claimForTrade} onClick={() => claimForTrade && void claimAll([claimForTrade])}>
-                    {/* Once the claim lands the row disappears from `claimable`, and the old
-                        fallback then rendered "Settling…" over a payout that had ALREADY been
-                        paid — the one message guaranteed to make a user think it is stuck. */}
-                    {claiming ?? (claimForTrade ? `Claim ${usd(claimForTrade.amount)}` : "Settling…")}
-                  </button>
+                  autoClaiming ? (
+                    // No button: the instant wallet is redeeming this itself.
+                    <p class="note" aria-live="polite">{autoClaimLabel}</p>
+                  ) : (
+                    <button type="button" class="btn" disabled={claiming !== null || !claimForTrade} onClick={() => claimForTrade && void claimAll([claimForTrade])}>
+                      {/* Once the claim lands the row disappears from `claimable`, and the old
+                          fallback then rendered "Settling…" over a payout that had ALREADY been
+                          paid — the one message guaranteed to make a user think it is stuck. */}
+                      {claiming ?? (claimForTrade ? `Claim ${usd(claimForTrade.amount)}` : "Settling…")}
+                    </button>
+                  )
                 )
               ) : (
                 <p class="note">This window closed against you, so the position is worth 0. Nothing to claim.</p>
@@ -891,7 +935,8 @@ export function Widget(props: { opts: RelayOptions; host: HTMLElement }) {
                   open={openPositions}
                   claimTotal={claimable?.total ?? 0}
                   claimCount={claimRows.length}
-                  claiming={claiming}
+                  claiming={autoClaimLabel ?? claiming}
+                  autoClaiming={autoClaiming}
                   nowSec={now}
                   onOpen={() => {
                     if (trade) setPhase("receipt");

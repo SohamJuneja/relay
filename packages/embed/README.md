@@ -29,6 +29,7 @@ host page's CSS cannot reach in and the widget's cannot leak out.
 | `data-amounts` | `1,5,10` | Comma-separated amount chips, in collateral units. |
 | `data-brand` | `true` | `false` hides the "via Relay" mark. |
 | `data-question` | `true` | `false` hides the plain-language question line ("Will BTC be above $79,525.10 at 23:30?"). Set it when the surrounding page already states the question, so the card does not say it twice. |
+| `data-auto-claim` | `true` | `false` keeps the manual Claim button for the instant wallet too. When a market resolves in the reader's favour and the wallet is the **instant** one, the card redeems on its own — "Claiming $1.42…", then "Claimed · 0x… ✓" and the new balance — and does the same for any other won positions that wallet holds, in sequence. Its key is already in this browser and already signs every trade, so the redemption needs no consent the trade did not have; an unclaimed win is money the reader thinks they have and does not. **Injected wallets always keep the button** whatever this is set to: every signature there is a prompt a person answers, and a page must not fire those unprompted. |
 
 ## JavaScript API
 

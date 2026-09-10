@@ -208,6 +208,8 @@ export function PositionsStrip(props: {
   claimTotal: number;
   claimCount: number;
   claiming: string | null;
+  /** The instant wallet is redeeming these itself; show progress, not a button. */
+  autoClaiming?: boolean | undefined;
   nowSec: number;
   onOpen: (marketId: string) => void;
   onClaim: () => void;
@@ -224,9 +226,13 @@ export function PositionsStrip(props: {
           {total} positions{claimCount > 0 ? ` · ${usd(claimTotal)} to claim` : ""}
         </span>
         {claimCount > 0 ? (
-          <button type="button" class="btn sm" disabled={props.claiming !== null} onClick={props.onClaim}>
-            {props.claiming ?? "Claim all"}
-          </button>
+          props.autoClaiming ? (
+            <span class="pos-txt" aria-live="polite">{props.claiming}</span>
+          ) : (
+            <button type="button" class="btn sm" disabled={props.claiming !== null} onClick={props.onClaim}>
+              {props.claiming ?? "Claim all"}
+            </button>
+          )
         ) : null}
       </div>
     );
@@ -236,9 +242,13 @@ export function PositionsStrip(props: {
     return (
       <div class="pos" data-tone="win">
         <span class="pos-txt">Your position settled in your favour.</span>
-        <button type="button" class="btn sm" disabled={props.claiming !== null} onClick={props.onClaim}>
-          {props.claiming ?? `Claim ${usd(claimTotal)}`}
-        </button>
+        {props.autoClaiming ? (
+          <span class="pos-txt" aria-live="polite">{props.claiming}</span>
+        ) : (
+          <button type="button" class="btn sm" disabled={props.claiming !== null} onClick={props.onClaim}>
+            {props.claiming ?? `Claim ${usd(claimTotal)}`}
+          </button>
+        )}
       </div>
     );
   }

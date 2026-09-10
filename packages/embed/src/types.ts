@@ -22,6 +22,12 @@ export interface RelayOptions {
   brand?: boolean | undefined;
   /** Show the plain-language question line under the header. Default true. */
   question?: boolean | undefined;
+  /**
+   * Redeem won positions without asking, when the wallet is the instant one. Default
+   * true. Injected wallets always keep the button — every signature there is a prompt
+   * a person answers, and a page must not fire those on its own.
+   */
+  autoClaim?: boolean | undefined;
 }
 
 export interface BookLevel {
