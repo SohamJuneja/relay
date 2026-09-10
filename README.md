@@ -117,7 +117,7 @@ pnpm api:dev                               # :8787 — /docs for the OpenAPI pag
 ```
 
 Then `pnpm console:dev` (:5179), `pnpm demo:dev` (:5180), `pnpm embed:dev` (:5178) or
-`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 190 tests.
+`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 194 tests.
 
 ## What is in here
 

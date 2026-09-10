@@ -171,3 +171,60 @@ describe("runPolling", () => {
     expect(h.running()).toBe(false);
   });
 });
+
+describe("a token check that never answers", () => {
+  // The exact production state this fixes: enabled true, running false, lastError
+  // null, restarts 0 — never started, never failed, nothing in the logs to look at.
+  // grammY puts no timeout on getMe, and a host that cannot reach api.telegram.org
+  // does not get refused; it waits.
+  it("times out, records why, and retries instead of hanging silently", async () => {
+    const slept: number[] = [];
+    let inits = 0;
+    let releaseStart: (() => void) | null = null;
+    const bot: PollingBot = {
+      botInfo: { username: "RelayTestBot" },
+      init() {
+        inits += 1;
+        // The first two never settle, like a blocked egress.
+        if (inits <= 2) return new Promise<void>(() => {});
+        return Promise.resolve();
+      },
+      start() {
+        return new Promise<void>((res) => (releaseStart = res));
+      },
+      async stop() {
+        releaseStart?.();
+      },
+    };
+    const log = vi.fn();
+    const h = runPolling(bot, {
+      log,
+      initTimeoutMs: 5,
+      baseDelayMs: 1,
+      sleep: async (ms) => void slept.push(ms),
+    });
+
+    await h.ready;
+    await waitFor(() => h.running(), "polling to start after the token check recovers");
+
+    expect(inits).toBe(3);
+    expect(slept.length).toBe(2);
+    expect(log.mock.calls.flat().join(" ")).toMatch(/did not answer within/);
+    expect(h.running()).toBe(true);
+    await h.stop();
+  });
+
+  it("reports the timeout in state() so /health can show it", async () => {
+    const bot: PollingBot = {
+      botInfo: { username: "RelayTestBot" },
+      init: () => new Promise<void>(() => {}),
+      start: () => new Promise<void>(() => {}),
+      async stop() {},
+    };
+    const h = runPolling(bot, { log: vi.fn(), initTimeoutMs: 5, baseDelayMs: 1, sleep: async () => {} });
+    await waitFor(() => h.state().lastError !== null, "the timeout to be recorded");
+    expect(h.state().lastError).toMatch(/did not answer within/);
+    expect(h.state().running).toBe(false);
+    await h.stop();
+  });
+});

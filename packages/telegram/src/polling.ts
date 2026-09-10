@@ -34,6 +34,15 @@ export interface PollingOptions {
   maxDelayMs?: number;
   /** A run that lasted at least this long counts as healthy and resets the backoff. */
   healthyAfterMs?: number;
+  /**
+   * How long to give the token check before treating it as a failure.
+   *
+   * getMe has no timeout of its own, and a hosted environment that cannot reach
+   * api.telegram.org does not refuse the connection — it hangs. That produced a bot
+   * reporting enabled:true, running:false and lastError:null forever: never started,
+   * never failed, nothing to see.
+   */
+  initTimeoutMs?: number;
   /** Injectable so tests do not wait in real time. */
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -64,6 +73,21 @@ const isFatalAuth = (e: unknown): boolean =>
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** Reject after `ms` rather than waiting on a promise that may never settle. */
+async function withTimeout<T>(p: Promise<T>, ms: number, why: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_res, rej) => {
+        timer = setTimeout(() => rej(new Error(why)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle {
   const {
     log,
@@ -71,6 +95,7 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
     baseDelayMs = 1_000,
     maxDelayMs = 60_000,
     healthyAfterMs = 60_000,
+    initTimeoutMs = 20_000,
     sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
     now = Date.now,
   } = opts;
@@ -89,14 +114,30 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
   });
 
   const loop = (async () => {
-    // One getMe. This is the only part of startup worth awaiting: it is the answer to
-    // "is this token real", and it terminates.
-    try {
-      await bot.init();
-    } catch (e) {
-      lastError = message(e);
-      rejectReady(e);
-      log(`token check failed: ${message(e)}`);
+    // One getMe — the answer to "is this token real". It is the only part of startup
+    // worth awaiting, and the only part that can hang: grammY puts no timeout on it,
+    // and a host that cannot reach api.telegram.org does not get refused, it waits.
+    // Retried rather than fatal, because unreachable is usually temporary.
+    let initDelay = baseDelayMs;
+    for (let attempt = 1; !stopped; attempt++) {
+      try {
+        await withTimeout(bot.init(), initTimeoutMs, `token check did not answer within ${initTimeoutMs} ms`);
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = message(e);
+        if (isFatalAuth(e)) {
+          rejectReady(e);
+          log(`token check failed: ${message(e)} — the token is not valid`);
+          return;
+        }
+        log(`token check failed (attempt ${attempt}): ${message(e)} — retrying in ${initDelay / 1000}s`);
+        await sleep(initDelay);
+        initDelay = Math.min(initDelay * 2, maxDelayMs);
+      }
+    }
+    if (stopped) {
+      resolveReady();
       return;
     }
     if (stopped) {

@@ -119,6 +119,12 @@ services:
       # will ever look at again — so an unset value is not a cosmetic problem, it is
       # a script tag that fails to resolve on someone else's page. The server refuses
       # to start in production without it. Must match the console's VITE_CDN_URL.
+      # Explicit, because two guards key off it: the server refuses to read a .env
+      # file in production, and buildApp refuses to start with an unconfigured
+      # CDN_URL. A guard that only fires when an implicit default happens to be set
+      # is not a guard.
+      - key: NODE_ENV
+        value: production
       - key: CDN_URL
         sync: false
       # This service's own public origin. It goes into every snippet as data-api,
