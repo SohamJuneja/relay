@@ -72,5 +72,10 @@ export async function assertDemoPartnerMatchesBuilder(): Promise<void> {
 }
 
 /** The exact snippet a partner pastes, with the CDN this build was configured for. */
+// data-api is not optional decoration. The widget's built-in default is
+// http://localhost:8787 — right for someone developing against a local API, and
+// dead on a publisher's actual page. A pasted snippet without it renders a card
+// that loads forever, which reads as a broken widget rather than a missing setting.
 export const embedSnippet = (partnerId: number | string, builderAddress: string): string =>
-  `<script src="${CDN_URL}/relay.iife.js"></script>\n<div data-relay-market data-partner="${partnerId}" data-builder="${builderAddress}"></div>`;
+  `<script src="${CDN_URL}/relay.iife.js"></script>
+<div data-relay-market data-partner="${partnerId}" data-builder="${builderAddress}" data-api="${API_URL}"></div>`;

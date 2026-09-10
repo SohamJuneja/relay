@@ -49,6 +49,18 @@ export function embedScriptUrl(env: NodeJS.ProcessEnv = process.env): string {
  * see again. Getting it wrong is not a page that looks off — it is a script tag that
  * never loads, on someone else's site, discovered by them.
  */
+/**
+ * The API base a pasted snippet should point at.
+ *
+ * PUBLIC_API_URL is this deployment's own externally reachable origin. Without it the
+ * snippet omits data-api and the widget falls back to http://localhost:8787, which is
+ * correct for local development and dead everywhere else.
+ */
+export function publicApiUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const u = (env.PUBLIC_API_URL ?? "").trim().replace(/[/]$/, "");
+  return u || undefined;
+}
+
 export function assertEmbedScriptUrlConfigured(env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV !== "production") return;
   const url = embedScriptUrl(env);

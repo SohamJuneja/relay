@@ -4,7 +4,7 @@
 // fill it brings in.
 
 import { describe, expect, it } from "vitest";
-import { assertEmbedScriptUrlConfigured, DEFAULT_SCRIPT_URL, embedScriptUrl, embedSnippet } from "./snippet.js";
+import { assertEmbedScriptUrlConfigured, DEFAULT_SCRIPT_URL, embedScriptUrl, embedSnippet, publicApiUrl } from "./snippet.js";
 
 const BUILDER = "0xb5eCf004491aa8589a82af91633D18867fcFF038";
 
@@ -95,5 +95,39 @@ describe("assertEmbedScriptUrlConfigured", () => {
   it("stays out of the way in development, where a placeholder is fine", () => {
     expect(() => assertEmbedScriptUrlConfigured({} as NodeJS.ProcessEnv)).not.toThrow();
     expect(() => assertEmbedScriptUrlConfigured({ NODE_ENV: "test" } as NodeJS.ProcessEnv)).not.toThrow();
+  });
+});
+
+describe("publicApiUrl", () => {
+  it("is undefined when unset, so the snippet omits data-api rather than lying", () => {
+    expect(publicApiUrl({} as NodeJS.ProcessEnv)).toBeUndefined();
+    expect(publicApiUrl({ PUBLIC_API_URL: "  " } as NodeJS.ProcessEnv)).toBeUndefined();
+  });
+
+  it("trims a trailing slash", () => {
+    expect(publicApiUrl({ PUBLIC_API_URL: "https://api.relay.test/" } as NodeJS.ProcessEnv)).toBe("https://api.relay.test");
+  });
+});
+
+describe("a snippet that will be pasted onto someone else's page", () => {
+  // The widget's built-in API default is http://localhost:8787. Correct for local
+  // development; on a publisher's page it is a card that loads forever, which reads as
+  // a broken widget rather than a missing attribute.
+  it("carries data-api when the deployment knows its own origin", () => {
+    const s = embedSnippet({ partnerId: 8, builderAddress: "0xabc", scriptUrl: "https://cdn.relay.test/relay.iife.js", api: "https://api.relay.test" });
+    expect(s).toContain('data-api="https://api.relay.test"');
+    expect(s).toContain('data-partner="8"');
+    expect(s).toContain('data-builder="0xabc"');
+    expect(s).toContain("https://cdn.relay.test/relay.iife.js");
+  });
+
+  it("omits data-api rather than emitting an empty one", () => {
+    const s = embedSnippet({ partnerId: 8, builderAddress: "0xabc", scriptUrl: "https://cdn.relay.test/relay.iife.js" });
+    expect(s).not.toContain("data-api");
+  });
+
+  it("is still two lines", () => {
+    const s = embedSnippet({ partnerId: 8, builderAddress: "0xabc", scriptUrl: "https://cdn.relay.test/relay.iife.js", api: "https://api.relay.test" });
+    expect(s.split("\n")).toHaveLength(2);
   });
 });

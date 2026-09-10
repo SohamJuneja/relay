@@ -121,6 +121,11 @@ services:
       # to start in production without it. Must match the console's VITE_CDN_URL.
       - key: CDN_URL
         sync: false
+      # This service's own public origin. It goes into every snippet as data-api,
+      # because the widget's built-in default is http://localhost:8787 — right for
+      # local development, dead on a publisher's page.
+      - key: PUBLIC_API_URL
+        sync: false
 
       # ── API ──
       - key: API_RATE_LIMIT_PER_MIN
