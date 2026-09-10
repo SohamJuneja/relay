@@ -51,14 +51,31 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
   // cases that need different fixes: ENOTFOUND is DNS, ETIMEDOUT/ECONNREFUSED is the
   // network path, a 4xx/5xx means we got there and the problem is elsewhere.
   void (async () => {
+    const parts: string[] = [];
+
+    // What the name resolves to, and which family Node will actually try first.
+    // Node 18 defaults to `verbatim`, which usually means AAAA first, and on a host
+    // with no IPv6 route that connection hangs rather than being refused.
+    try {
+      const { promises: dnsp, getDefaultResultOrder } = await import("node:dns");
+      const [v4, v6] = await Promise.all([
+        dnsp.resolve4("api.telegram.org").catch((e: Error) => [`error:${e.message}`]),
+        dnsp.resolve6("api.telegram.org").catch((e: Error) => [`error:${e.message}`]),
+      ]);
+      parts.push(`order=${getDefaultResultOrder()}`, `A=[${v4.join(",")}]`, `AAAA=[${v6.join(",")}]`);
+    } catch (e) {
+      parts.push(`dns probe failed: ${(e as Error).message}`);
+    }
+
     const started = Date.now();
     try {
       const r = await fetch("https://api.telegram.org/", { signal: AbortSignal.timeout(15_000) });
-      reachability = `HTTP ${r.status} in ${Date.now() - started} ms`;
+      parts.push(`HTTP ${r.status} in ${Date.now() - started} ms`);
     } catch (e) {
-      const err = e as Error & { cause?: { code?: string } };
-      reachability = `${err.name}: ${err.cause?.code ?? err.message} after ${Date.now() - started} ms`;
+      const err = e as Error & { cause?: { code?: string; message?: string } };
+      parts.push(`${err.name}: ${err.cause?.code ?? err.cause?.message ?? err.message} after ${Date.now() - started} ms`);
     }
+    reachability = parts.join(" · ");
     log(`api.telegram.org reachability — ${reachability}`);
   })();
   let pollingState: (() => { running: boolean; lastPollAt: number | null; lastError: string | null; restarts: number }) | null = null;

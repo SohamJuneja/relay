@@ -73,6 +73,13 @@ jobs:
       - run: pnpm ${{ env.PNPM_INSTALL }}
 
       - name: Build a fresh clone and dry-start the server
+        env:
+          # The dry start builds the app, and buildApp refuses to start in production
+          # without a real CDN_URL — deliberately, since every snippet it hands out
+          # carries that hostname. Both are public deployment URLs, not secrets, so
+          # they belong in the workflow rather than in the repository's secrets.
+          CDN_URL: https://relay-cdn-sohamjunejas-projects.vercel.app
+          PUBLIC_API_URL: https://relay-server-htey.onrender.com
         run: pnpm smoke:prod
 
   sites:

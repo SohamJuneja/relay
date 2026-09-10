@@ -40,6 +40,10 @@
     "./polling": {
       "types": "./src/polling.ts",
       "default": "./src/polling.ts"
+    },
+    "./ipv4-first": {
+      "types": "./src/ipv4-first.ts",
+      "default": "./src/ipv4-first.ts"
     }
   }
 }

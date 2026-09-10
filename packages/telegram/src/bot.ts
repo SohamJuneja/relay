@@ -9,6 +9,8 @@
 // Without TELEGRAM_BOT_TOKEN it runs in DRY RUN: every message it would send is
 // printed instead, so the copy and the scheduler can be exercised without a token.
 
+// FIRST, before anything can resolve a hostname. See the module for why.
+import "./ipv4-first.js";
 import { config as loadEnv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import path from "node:path";

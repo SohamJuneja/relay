@@ -46,9 +46,15 @@ await page.goto(`${CONSOLE}/`, { waitUntil: "domcontentloaded", timeout: 90_000 
 const w = page.locator('[data-testid="widget-preview"]');
 await w.locator(".card").waitFor({ timeout: 60_000 });
 
-// 5-minute windows: short enough to settle inside a run.
-await w.locator(".seg").filter({ hasText: "5m" }).first().click().catch(() => undefined);
-await page.waitForTimeout(2500);
+// 5-minute windows: short enough to settle inside a run. The interval controls are
+// plain buttons — a `.seg` selector silently matched nothing, and the whole run then
+// traded 15m windows that could not possibly settle inside the deadline below.
+await w.getByRole("button", { name: "5m", exact: true }).first().click();
+await page.waitForTimeout(3000);
+{
+  const label = (await w.locator(".card").innerText().catch(() => "")).replace(/\s+/g, " ");
+  log(`series after selecting 5m: ${/BTC ETH ([0-9a-z ]+?) (Trading|Loading|—)/.exec(label)?.[0] ?? label.slice(0, 60)}`);
+}
 
 log("onboarding the instant wallet");
 await w.getByRole("button", { name: /Trade in one click/i }).click();
@@ -107,7 +113,7 @@ for (let attempt = 1; attempt <= ATTEMPTS && !report.won; attempt++) {
 
   // Watch the receipt through settlement. Auto-claim, if it fires, does so here with
   // no interaction at all.
-  const deadline = Date.now() + 9 * 60_000;
+  const deadline = Date.now() + 11 * 60_000;
   let outcome = "pending";
   while (Date.now() < deadline) {
     await page.waitForTimeout(5000);

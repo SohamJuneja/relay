@@ -15,6 +15,8 @@
 // what is already in the database, and /health reports the lag so the failure is
 // visible rather than silent.
 
+// FIRST, before anything can resolve a hostname. See the module for why.
+import "@relay/telegram/ipv4-first";
 import path from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
