@@ -43,7 +43,7 @@ channel only.
   any foreign value whose top byte is 0 also decodes as untagged). `1` = this layout.
 - `partnerId` — Relay's partner id, 1…2³²−1. `0` is reserved and makes the tag invalid.
 - `surfaceId` — where the order came from: `0` unknown, `1` web, `2` telegram, `3` farcaster,
-  `4` discord, `5` mobile, `6` api. Room for 65k.
+  `4` discord, `5` mobile, `6` api, `7` agent. Room for 65k.
 - `reserved` — must be 0 in v1. A non-zero value makes `tagged = false`, so a future v1.x
   cannot be mis-read by a v1 decoder as a plain v1 tag.
 
@@ -52,6 +52,23 @@ channel only.
 the uint64 ceiling.
 
 Example: partner 42 from Telegram → `0x01_0000002A_0002_00` = `72057594307936768`.
+
+## Surfaces
+
+Four of those ids carry real flow today, and they exist so that "who sent this order"
+and "what was the reader looking at" stay separate questions. A partner with a site, a
+Telegram channel and a bot is one partner with three surfaces, not three partners.
+
+| Surface | Id | What sends it | Signs with |
+| --- | --- | --- | --- |
+| `web` | 1 | The embeddable widget on a publisher's page | Instant wallet in the browser, or the reader's injected wallet |
+| `telegram` | 2 | The Telegram mini-app | Instant wallet inside the WebView |
+| `agent` | 7 | A bot built on [`@relay/sdk`](../packages/sdk) | The operator's own key, in their process |
+| `api` | 6 | Anything calling the contracts directly with a Relay tag | Whatever the caller uses |
+
+The split is visible wherever attribution is: `/v1/partners/:id/breakdown` groups by it,
+and the console's dashboard shows a "By surface" bar. A publisher who adds a bot sees
+both rows under one id rather than having to reconcile two partner accounts.
 
 ## Why not encode more (campaign ids, click ids)?
 

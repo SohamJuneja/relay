@@ -27,6 +27,8 @@ export const SURFACE = {
   DISCORD: 4,
   MOBILE: 5,
   API: 6,
+  /** A bot trading through @relay/sdk. Its operator is the partner. */
+  AGENT: 7,
 } as const;
 export type SurfaceName = keyof typeof SURFACE;
 
