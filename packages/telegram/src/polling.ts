@@ -17,6 +17,18 @@
 /** The slice of grammY's `Bot` this supervisor needs — kept small so it can be stubbed. */
 export interface PollingBot {
   init(): Promise<void>;
+  /**
+   * The raw getMe, used for the token check instead of init().
+   *
+   * `init()` memoises its promise — grammY does `this.mePromise ??= withRetries(...)`
+   * — and withRetries retries internally with a backoff capped at an hour. So one
+   * failure at boot caches a promise that may not settle for an hour, and every later
+   * init() call awaits that SAME promise. A retry loop around init() therefore retries
+   * nothing: it waits on one hung promise over and over. Observed in production as a
+   * token check timing out every 20 s with restarts:0 forever, while a plain fetch of
+   * the very same getMe answered 200 in 2.1 s from the same process.
+   */
+  api?: { getMe(): Promise<{ username: string }> } | undefined;
   start(options?: {
     onStart?: (me: { username: string }) => void | Promise<void>;
     drop_pending_updates?: boolean;
@@ -121,7 +133,11 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
     let initDelay = baseDelayMs;
     for (let attempt = 1; !stopped; attempt++) {
       try {
-        await withTimeout(bot.init(), initTimeoutMs, `token check did not answer within ${initTimeoutMs} ms`);
+        // bot.api.getMe() is NOT memoised, so each attempt is a real request.
+        // init() is still called afterwards to populate botInfo, and by then the
+        // answer is warm.
+        if (bot.api) await withTimeout(bot.api.getMe(), initTimeoutMs, `token check did not answer within ${initTimeoutMs} ms`);
+        await withTimeout(bot.init(), initTimeoutMs, `bot.init did not answer within ${initTimeoutMs} ms`);
         lastError = null;
         break;
       } catch (e) {

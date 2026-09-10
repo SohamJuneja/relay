@@ -228,3 +228,58 @@ describe("a token check that never answers", () => {
     await h.stop();
   });
 });
+
+describe("the token check does not depend on a memoised promise", () => {
+  // grammY memoises init(): `this.mePromise ??= withRetries(() => this.api.getMe())`,
+  // and withRetries backs off internally up to an hour. One failure at boot therefore
+  // caches a promise that may never settle in any useful timeframe, and every later
+  // init() awaits that same one — so a retry loop around init() retries nothing.
+  // Production showed exactly this: a 20 s timeout repeating forever with restarts:0,
+  // while a plain fetch of the same getMe answered 200 in 2.1 s from that process.
+  it("retries against api.getMe, which is not cached, rather than init", async () => {
+    let apiCalls = 0;
+    let initCalls = 0;
+    // The memoised init: hangs the first time and returns that same promise forever.
+    let cached: Promise<void> | null = null;
+    let releaseStart: (() => void) | null = null;
+
+    const bot: PollingBot = {
+      botInfo: { username: "RelayTestBot" },
+      api: {
+        async getMe() {
+          apiCalls += 1;
+          if (apiCalls < 3) throw new Error("ETIMEDOUT");
+          return { username: "RelayTestBot" };
+        },
+      },
+      init() {
+        initCalls += 1;
+        cached ??= apiCalls < 3 ? new Promise<void>(() => {}) : Promise.resolve();
+        return cached;
+      },
+      start: () => new Promise<void>((res) => (releaseStart = res)),
+      async stop() {
+        releaseStart?.();
+      },
+    };
+
+    const h = runPolling(bot, { log: vi.fn(), initTimeoutMs: 20, baseDelayMs: 1, sleep: async () => {} });
+    await h.ready;
+    await waitFor(() => h.running(), "polling to start once getMe answers");
+
+    // Three real getMe attempts, not three awaits on one hung promise.
+    expect(apiCalls).toBe(3);
+    expect(initCalls).toBeGreaterThan(0);
+    expect(h.running()).toBe(true);
+    await h.stop();
+  });
+
+  it("still works for a bot with no api handle", async () => {
+    const { bot } = stubBot();
+    const h = runPolling(bot, { log: vi.fn() });
+    await h.ready;
+    await waitFor(() => h.running(), "polling to start");
+    expect(h.running()).toBe(true);
+    await h.stop();
+  });
+});
