@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Relay \u00e2\u20ac\u201d distribution layer for DreamDEX Event Contracts on Somnia: embeddable widget + SDK, builder-code attribution indexer, partner console.",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=20"
   },
