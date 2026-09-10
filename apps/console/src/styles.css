@@ -390,8 +390,17 @@ pre.snippet {
   font-family: var(--relay-font-mono);
   font-size: 12px;
   line-height: 1.55;
+  /*
+   * Wrap rather than scroll. The snippet is the thing a partner copies, and a
+   * horizontal scrollbar hides the half of it that says who gets paid —
+   * data-builder and data-api are at the end of the line. `anywhere` breaks only
+   * when a line genuinely does not fit, so short snippets keep their shape.
+   *
+   * overflow-x stays as a backstop for anything that still cannot break.
+   */
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--ink-2);
 }
 code.inline {
@@ -480,6 +489,20 @@ code.inline {
   grid-template-columns: minmax(0, 1.15fr) minmax(300px, 400px);
   gap: var(--s6);
   align-items: start;
+}
+/*
+ * A grid item's default `min-width: auto` is its MIN-CONTENT width, so one
+ * unbreakable line inside it — a snippet with a long data-api attribute, say — makes
+ * the whole column refuse to shrink below that, and the column slides under its
+ * neighbour. `minmax(0, …)` on the track is not enough on its own: the track can
+ * shrink, the item will not.
+ *
+ * This is the fix for the landing page overflowing under the widget at 1440 px, and
+ * it belongs on the container rather than on each page that happens to hit it.
+ */
+.split > *,
+.three > * {
+  min-width: 0;
 }
 .lede {
   font-size: 17px;
