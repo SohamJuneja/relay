@@ -47,6 +47,14 @@ const RUNTIME_REQUIRES = [
   "fast-json-stringify",
   "fast-json-stringify/lib/serializer",
   "fast-json-stringify/lib/validator",
+  // External on purpose: node-fetch v2 identifies an AbortSignal by class name, and a
+  // bundler renaming identifiers breaks that. External means it must be resolvable
+  // from node_modules at run time, and a dry start without a bot token never loads it
+  // — so the one failure mode this change introduces is exactly the one nothing else
+  // would catch.
+  "grammy",
+  "node-fetch",
+  "abort-controller",
 ];
 
 /**

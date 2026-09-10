@@ -46,6 +46,23 @@ const result = await build({
     // require() and top-level await also makes Node refuse to pick a module format.
     // It has to stay a real package in node_modules.
     "@fastify/swagger-ui",
+    // grammY, and the two packages its Node shim pulls in.
+    //
+    // node-fetch v2 decides whether something is an AbortSignal BY CLASS NAME:
+    //
+    //     const isAbortSignal = o => Object.getPrototypeOf(o)?.constructor.name === "AbortSignal";
+    //
+    // A bundler is free to rename identifiers — esbuild renames on collision, and the
+    // global AbortSignal guarantees one — so a check like that cannot survive
+    // bundling. The symptom was a bot that never started, reporting
+    // "Network request for 'getMe' failed! — TypeError: Expected signal to be an
+    // instanceof AbortSignal" while a plain fetch of the identical getMe answered 200
+    // from the same process.
+    //
+    // Left as real packages in node_modules, grammY loads the way its authors tested.
+    "grammy",
+    "node-fetch",
+    "abort-controller",
     // Optional native bindings that their callers probe for behind try/catch.
     "pg-native",
     "cpu-features",
