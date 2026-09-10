@@ -12,6 +12,10 @@ interface ImportMetaEnv {
   readonly VITE_CDN_URL?: string;
   readonly VITE_CONSOLE_URL?: string;
   readonly VITE_EXPLORER_URL?: string;
+  /** The partner the landing page's live widget mounts with. */
+  readonly VITE_DEMO_PARTNER_ID?: string;
+  /** That partner's builder address. The two must belong together — see config.ts. */
+  readonly VITE_DEMO_BUILDER?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

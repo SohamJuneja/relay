@@ -250,7 +250,7 @@ function PartnerView(props: { session: Session; onSignOut: () => void }) {
         <div className="split" style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 1fr)" }}>
           <div className="card">
             <header>
-              <h2>Routed notional per hour</h2>
+              <h2>Routed notional per {(breakdown.data?.bucketSec ?? 3600) >= 86400 ? "day" : "hour"}</h2>
               <span className="muted" style={{ fontSize: 11.5 }}>tUSDC</span>
             </header>
             {breakdown.isPending ? (
@@ -260,6 +260,7 @@ function PartnerView(props: { session: Session; onSignOut: () => void }) {
             ) : (
               <TimeBars
                 xs={hourly.map((h) => h.hourTs)}
+                bucketSec={breakdown.data?.bucketSec ?? 3600}
                 series={[{ label: "notional", values: hourly.map((h) => h.notional), colorVar: "--up", fallback: "#067a55" }]}
                 fmt={(n) => tusdc(n, n >= 100 ? 0 : 2)}
                 ariaLabel="Routed notional per hour"

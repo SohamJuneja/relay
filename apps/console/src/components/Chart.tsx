@@ -63,8 +63,10 @@ function useWidth(ref: React.RefObject<HTMLDivElement>): number {
  * is the label format. Values are unix SECONDS, as uPlot expects with time: true.
  */
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-export function hourLabel(unixSec: number): string {
+export function hourLabel(unixSec: number, bucketSec = 3600): string {
   const d = new Date(unixSec * 1000);
+  // Daily buckets are dates, not times: "14:00" on a 90-day axis says nothing.
+  if (bucketSec >= 86_400) return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
   if (d.getHours() === 0) return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
   return `${String(d.getHours()).padStart(2, "0")}:00`;
 }
@@ -86,6 +88,8 @@ export interface BarSeries {
  */
 export function TimeBars(props: {
   xs: number[];
+  /** Seconds per bucket; decides whether the x axis reads as hours or dates. */
+  bucketSec?: number;
   series: BarSeries[];
   height?: number;
   yLabel?: string;
@@ -134,7 +138,7 @@ export function TimeBars(props: {
           ticks: { show: false },
           font: "11px var(--relay-font-ui)",
           size: 28,
-          values: (_u, splits) => splits.map((v) => hourLabel(v)),
+          values: (_u, splits) => splits.map((v) => hourLabel(v, props.bucketSec ?? 3600)),
         },
         { stroke: ink3, grid: { stroke: line, width: 1 }, ticks: { show: false }, font: "11px var(--relay-font-ui)", size: 52, values: (_u, vals) => vals.map((v) => fmt(v)) },
       ],
@@ -162,7 +166,7 @@ export function TimeBars(props: {
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [width, height, themeKey, props.xs, props.series, props.stacked, fmt]);
+  }, [width, height, themeKey, props.xs, props.series, props.stacked, props.bucketSec, fmt]);
 
   return (
     <>

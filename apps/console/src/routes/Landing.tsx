@@ -6,13 +6,11 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { API_URL, embedSnippet } from "../config";
+import { API_URL, embedSnippet, DEMO_BUILDER, DEMO_PARTNER_ID } from "../config";
 import { count, usd } from "../format";
 import { CopyButton, Skeleton } from "../components/ui";
 import { WidgetPreview } from "../components/WidgetPreview";
 
-const DEMO_PARTNER = 1;
-const DEMO_BUILDER = "0xb5eCf004491aa8589a82af91633D18867fcFF038";
 
 const SNIPPET = embedSnippet(1, "0xYourBuilderAddress");
 
@@ -92,9 +90,9 @@ export function Landing() {
 
           <div className="stack tight">
             <h3>Live, on this page</h3>
-            <WidgetPreview partner={DEMO_PARTNER} builder={DEMO_BUILDER} asset="BTC" intervalSec={900} surface="web" />
+            <WidgetPreview partner={DEMO_PARTNER_ID} builder={DEMO_BUILDER} asset="BTC" intervalSec={900} surface="web" />
             <p className="hint">
-              This is the real widget, mounted with partner {DEMO_PARTNER}. Trades placed here settle on Shannon
+              This is the real widget, mounted with partner {DEMO_PARTNER_ID}. Trades placed here settle on Shannon
               testnet.
             </p>
           </div>

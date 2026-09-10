@@ -6,7 +6,7 @@
 // fill in the last 24 hours.
 
 import { describe, expect, it } from "vitest";
-import { hourBuckets } from "./hourly.js";
+import { bucketSecondsFor, bucketsEnding, hourBuckets } from "./hourly.js";
 
 const HOUR = 3600;
 // 2026-09-10T08:00:00Z, exactly on an hour boundary.
@@ -83,5 +83,52 @@ describe("hourBuckets", () => {
     const out = hourBuckets(NOW_HOUR, 2, [{ hour_ts: NOW_HOUR * 1000, fills: 7 }], (r) => ({ fills: Number(r.fills) }));
     expect(out.every((b) => b.fills === 0)).toBe(true);
     expect(out[0]!.hourTs).toBeLessThan(2_000_000_000);
+  });
+});
+
+describe("bucketSecondsFor", () => {
+  it("stays hourly up to a week and switches to daily beyond it", () => {
+    expect(bucketSecondsFor(6)).toBe(3600);
+    expect(bucketSecondsFor(24)).toBe(3600);
+    expect(bucketSecondsFor(168)).toBe(3600);
+    expect(bucketSecondsFor(169)).toBe(86400);
+    // The console's "all" span: 90 days would be 2 160 hourly buckets.
+    expect(bucketSecondsFor(24 * 90)).toBe(86400);
+  });
+});
+
+describe("bucketsEnding with daily buckets", () => {
+  const DAY = 86400;
+  // 2026-09-10T00:00:00Z
+  const TODAY = Math.floor(1789027200 / DAY) * DAY;
+
+  it("gives one bucket per day for a 90-day range", () => {
+    const out = bucketsEnding(TODAY + 12 * 3600, 90, DAY, [], () => ({ fills: 0 }));
+    expect(out).toHaveLength(90);
+    expect(out[out.length - 1]!.hourTs).toBe(TODAY);
+    expect(out[1]!.hourTs - out[0]!.hourTs).toBe(DAY);
+  });
+
+  it("sums the hourly rows that fall inside one day", () => {
+    // The hourly path never had to merge — one row per bucket. Daily buckets take
+    // many, and overwriting instead of adding would silently report only the last.
+    const rows = [
+      { hour_ts: TODAY + 1 * 3600, fills: 2, notional: 10 },
+      { hour_ts: TODAY + 5 * 3600, fills: 3, notional: 25 },
+      { hour_ts: TODAY - 2 * 3600, fills: 7, notional: 70 },
+    ];
+    const out = bucketsEnding(TODAY + 12 * 3600, 2, DAY, rows, (r) => ({ fills: Number(r.fills), notional: Number(r.notional) }));
+    expect(out).toHaveLength(2);
+    expect(out[1]!.fills).toBe(5);
+    expect(out[1]!.notional).toBe(35);
+    // Yesterday's row stays in yesterday.
+    expect(out[0]!.fills).toBe(7);
+  });
+
+  it("is identical to hourBuckets when the step is an hour", () => {
+    const rows = [{ hour_ts: 1789027200 - 5 * 3600, fills: 1 }];
+    const a = hourBuckets(1789027200, 24, rows, (r) => ({ fills: Number(r.fills) }));
+    const b = bucketsEnding(1789027200, 24, 3600, rows, (r) => ({ fills: Number(r.fills) }));
+    expect(b).toEqual(a);
   });
 });

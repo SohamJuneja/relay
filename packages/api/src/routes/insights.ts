@@ -10,7 +10,7 @@
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { hourBuckets } from "../hourly.js";
+import { bucketSecondsFor, bucketsEnding } from "../hourly.js";
 import { eq, sql } from "drizzle-orm";
 import { partners, marketsInRange, summarise } from "@relay/indexer";
 import { SURFACE } from "@relay/core";
@@ -84,6 +84,7 @@ export function registerInsights(app: App, deps: ApiDeps): void {
             bySurface: z.array(BySurface),
             bySeries: z.array(BySeries),
             byDay: z.array(ByDay),
+            bucketSec: z.number(),
             byHour: z.array(ByHour),
           }),
           401: z.object({ error: z.string() }),
@@ -151,11 +152,16 @@ export function registerInsights(app: App, deps: ApiDeps): void {
         // bar and invents an axis around it — which is why the dashboard's "routed
         // notional per hour" was labelled Dec 2026 … Jun 2029. The range is the
         // question the reader asked; the empty hours are part of the answer.
-        byHour: hourBuckets(Math.floor(Date.now() / 1000), req.query.hours, rowsOf(hourQ), (r) => ({
-          fills: num(r.fills),
-          notional: money(r.notional),
-          uniqueWallets: num(r.wallets),
-        })),
+        // Hourly up to a week, daily beyond it. `bucketSec` tells the client which,
+        // so the axis can be labelled in the same unit the data is in.
+        bucketSec: bucketSecondsFor(req.query.hours),
+        byHour: bucketsEnding(
+          Math.floor(Date.now() / 1000),
+          bucketSecondsFor(req.query.hours) === 86_400 ? Math.ceil(req.query.hours / 24) : req.query.hours,
+          bucketSecondsFor(req.query.hours),
+          rowsOf(hourQ),
+          (r) => ({ fills: num(r.fills), notional: money(r.notional), uniqueWallets: num(r.wallets) }),
+        ),
       };
     },
   );

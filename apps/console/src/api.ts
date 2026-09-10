@@ -112,6 +112,8 @@ export interface Breakdown {
   partnerId: number;
   hours: number;
   since: number;
+  /** Seconds per bucket in `byHour`: 3600 up to a week, 86400 beyond it. */
+  bucketSec: number;
   bySurface: { surfaceId: number; name: string; fills: number; notional: number }[];
   bySeries: { asset: string; intervalSec: number; fills: number; notional: number }[];
   byDay: { day: string; fills: number; notional: number; uniqueWallets: number }[];

@@ -48,6 +48,11 @@ services:
         sync: false
       - key: MINIAPP_URL
         sync: false
+      # Guards PATCH /v1/partners/:id, which corrects a public partner name. Absent
+      # by default and the route refuses everything without it — a rename endpoint
+      # that falls open is worse than no rename endpoint.
+      - key: ADMIN_TOKEN
+        sync: false
 
       # ── chain ──
       - key: RPC_URL

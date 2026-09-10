@@ -124,14 +124,92 @@ export function registerPartners(app: App, deps: ApiDeps): void {
         tags: ["partners"],
         summary: "Public partner card: name, fills, notional (no key)",
         params: z.object({ partnerId: z.coerce.number().int() }),
-        response: { 200: z.object({ partnerId: z.number(), name: z.string(), homepage: z.string().nullable(), verified: z.boolean(), fills: z.number(), notional: z.number(), marketsTouched: z.number(), since: z.string() }), 404: z.object({ error: z.string() }) },
+        response: {
+          200: z.object({
+            partnerId: z.number(),
+            name: z.string(),
+            /** Public on chain in every order this partner tags; a consumer can check it matches. */
+            builderAddress: AddressZ,
+            homepage: z.string().nullable(),
+            verified: z.boolean(),
+            fills: z.number(),
+            notional: z.number(),
+            marketsTouched: z.number(),
+            since: z.string(),
+          }),
+          404: z.object({ error: z.string() }),
+        },
       },
     },
     async (req, reply) => {
       const p = (await deps.db.select().from(partners).where(eq(partners.partnerId, req.params.partnerId)).limit(1))[0];
       if (!p) return reply.status(404).send({ error: "partner_not_found" });
-      const s = (await deps.db.select().from(statsPartner).where(eq(statsPartner.partnerId, p.partnerId)).limit(1))[0];
-      return { partnerId: p.partnerId, name: p.name, homepage: p.homepage ?? null, verified: p.verified, fills: s?.fills ?? 0, notional: Number(s?.notional ?? 0) / 10 ** deps.cfg.decimals, marketsTouched: s?.marketsTouched ?? 0, since: p.createdAt.toISOString() };
+
+      // Counted from `fills`, not from the stats_partner rollup.
+      //
+      // That rollup refreshes once a minute, so a card read straight after a trade
+      // showed the count from before it — up to a minute of a partner watching their
+      // own fill not appear on their own public card, while the fill was already in
+      // the API. The dashboard's /stats endpoint already recomputes for exactly this
+      // reason; the public card had been left behind.
+      const venueId = deps.cfg.defaultVenueId.toLowerCase();
+      const r = rowsOf(
+        await deps.db.execute(sql`
+          select count(*)::int as fills,
+                 coalesce(sum(f.notional),0)::text as notional,
+                 count(distinct f.market_id)::int as markets
+          from fills f join markets m on m.market_id = f.market_id
+          where f.taker_partner_id = ${p.partnerId} and m.venue_id = ${venueId}`),
+      )[0];
+      return {
+        partnerId: p.partnerId,
+        name: p.name,
+        builderAddress: p.builderAddress,
+        homepage: p.homepage ?? null,
+        verified: p.verified,
+        fills: Number(r?.fills ?? 0),
+        notional: Number(BigInt(String(r?.notional ?? "0"))) / 10 ** deps.cfg.decimals,
+        marketsTouched: Number(r?.markets ?? 0),
+        since: p.createdAt.toISOString(),
+      };
+    },
+  );
+
+  // ── admin: rename a partner ────────────────────────────────────────────────
+  //
+  // Names are public — they appear on the leaderboard and on every receipt the widget
+  // prints — and registration is open, so there has to be a way to correct one without
+  // a psql session. Guarded by ADMIN_TOKEN, which is absent by default: with no token
+  // configured the route refuses everything rather than falling open.
+  app.patch(
+    "/v1/partners/:partnerId",
+    {
+      schema: {
+        tags: ["partners"],
+        summary: "Rename a partner (admin, x-admin-token)",
+        description: "Operational endpoint for correcting a public name. Requires ADMIN_TOKEN to be configured on the server; without it every request is refused.",
+        params: z.object({ partnerId: z.coerce.number().int() }),
+        body: z.object({ name: z.string().min(1).max(80) }),
+        response: {
+          200: z.object({ partnerId: z.number(), name: z.string() }),
+          401: z.object({ error: z.string() }),
+          404: z.object({ error: z.string() }),
+        },
+      },
+    },
+    async (req, reply) => {
+      const expected = (process.env.ADMIN_TOKEN ?? "").trim();
+      const given = String(req.headers["x-admin-token"] ?? "");
+      // Length-independent compare, and a hash on both sides so the comparison never
+      // depends on the secret's own length.
+      const ok = expected.length > 0 && sha256(given) === sha256(expected);
+      if (!ok) return reply.status(401).send({ error: expected ? "unauthorized" : "admin_disabled" });
+
+      const p = (await deps.db.select().from(partners).where(eq(partners.partnerId, req.params.partnerId)).limit(1))[0];
+      if (!p) return reply.status(404).send({ error: "partner_not_found" });
+      const name = req.body.name.trim();
+      await deps.db.update(partners).set({ name }).where(eq(partners.partnerId, p.partnerId));
+      return { partnerId: p.partnerId, name };
     },
   );
 

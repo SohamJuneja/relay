@@ -35,3 +35,45 @@ export function hourBuckets<T extends Record<string, number>>(
   }
   return [...byHour.entries()].map(([hourTs, v]) => ({ hourTs, ...v })).sort((a, b) => a.hourTs - b.hourTs);
 }
+
+/**
+ * Bucket size for a range, in seconds.
+ *
+ * Beyond a week, hourly is the wrong unit: the console's "all" span is 90 days, which
+ * is 2 160 hourly buckets — bars a pixel wide, an axis nobody can read, and a payload
+ * carrying mostly zeroes. A day is the readable unit at that length.
+ */
+export const bucketSecondsFor = (hours: number): number => (hours > 24 * 7 ? 86_400 : 3_600);
+
+/**
+ * `count` buckets of `stepSec` ending on the bucket containing `endSec`.
+ *
+ * The hourly case is `bucketsEnding(end, hours, 3600, …)`; a range longer than a week
+ * collapses to days, and the caller asks for `ceil(hours / 24)` of them.
+ */
+export function bucketsEnding<T extends Record<string, number>>(
+  endSec: number,
+  count: number,
+  stepSec: number,
+  rows: Record<string, unknown>[],
+  pick: (r: Record<string, unknown>) => T,
+): ({ hourTs: number } & T)[] {
+  const last = Math.floor(endSec / stepSec) * stepSec;
+  const first = last - (count - 1) * stepSec;
+  const zero = Object.fromEntries(Object.keys(pick(rows[0] ?? {})).map((k) => [k, 0])) as T;
+  const buckets = new Map<number, T>();
+  for (let i = 0; i < count; i++) buckets.set(first + i * stepSec, { ...zero });
+  for (const r of rows) {
+    const b = Math.floor(Number(r.hour_ts) / stepSec) * stepSec;
+    const cur = buckets.get(b);
+    if (!cur) continue;
+    // Several hourly rows can fall in one daily bucket, so values accumulate rather
+    // than overwrite — the hourly path never hit this because its rows were already
+    // one per bucket.
+    const add = pick(r);
+    const merged = { ...cur } as Record<string, number>;
+    for (const [k, v] of Object.entries(add)) merged[k] = (merged[k] ?? 0) + v;
+    buckets.set(b, merged as T);
+  }
+  return [...buckets.entries()].map(([hourTs, v]) => ({ hourTs, ...v })).sort((a, b) => a.hourTs - b.hourTs);
+}
