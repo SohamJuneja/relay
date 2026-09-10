@@ -36,6 +36,7 @@ export function registerHealth(app: App, deps: ApiDeps): void {
               lastUpdateAt: z.string().nullable(),
               lastError: z.string().nullable(),
               restarts: z.number(),
+              apiRoot: z.string(),
               reachability: z.string().nullable(),
             }),
             dbOk: z.boolean(),
@@ -84,7 +85,7 @@ export function registerHealth(app: App, deps: ApiDeps): void {
         historyCoveredHours: Math.round(coveredHours(hist?.lastBlock ?? null, cur?.lastBlock ?? null) * 10) / 10,
         historyComplete: hist !== null && hist.lastBlock <= hist.startBlock,
         // Undefined in the standalone API, which says so rather than guessing.
-        bot: deps.botStatus?.() ?? { enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: null, restarts: 0, reachability: null },
+        bot: deps.botStatus?.() ?? { enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: null, restarts: 0, apiRoot: "", reachability: null },
         dbOk,
         cursorUpdatedAt: cur?.updatedAt?.toISOString() ?? null,
         ts: Math.floor(Date.now() / 1000),

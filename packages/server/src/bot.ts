@@ -33,7 +33,7 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     return {
       stop: async () => undefined,
       running: () => false,
-      status: () => ({ enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: "TELEGRAM_BOT_TOKEN is not set", restarts: 0, reachability: null }),
+      status: () => ({ enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: "TELEGRAM_BOT_TOKEN is not set", restarts: 0, apiRoot: "", reachability: null }),
     };
   }
 
@@ -43,6 +43,10 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
   let lastUpdateAt: number | null = null;
   let startupError: string | null = null;
   let reachability: string | null = null;
+  // Read here, not inside the async body, so the probe below and /health both see the
+  // endpoint the bot will actually use. Not knowing which of two endpoints was in play
+  // is what made the last round of this ambiguous.
+  const configuredApiRoot = (process.env.TELEGRAM_API_ROOT ?? "").trim().replace(/[/]$/, "");
 
   // Can this host reach Telegram at all?
   //
@@ -67,14 +71,24 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
       parts.push(`dns probe failed: ${(e as Error).message}`);
     }
 
-    const started = Date.now();
-    try {
-      const r = await fetch("https://api.telegram.org/", { signal: AbortSignal.timeout(15_000) });
-      parts.push(`HTTP ${r.status} in ${Date.now() - started} ms`);
-    } catch (e) {
-      const err = e as Error & { cause?: { code?: string; message?: string } };
-      parts.push(`${err.name}: ${err.cause?.code ?? err.cause?.message ?? err.message} after ${Date.now() - started} ms`);
+    // Probe the endpoint the bot will ACTUALLY use. Hardcoding api.telegram.org meant
+    // the probe kept reporting a timeout that was true and irrelevant once a proxy was
+    // configured — it said nothing about whether the proxy worked.
+    const target = configuredApiRoot || "https://api.telegram.org";
+    for (const [label, origin] of [
+      ["direct", "https://api.telegram.org"],
+      ...(configuredApiRoot ? ([["apiRoot", configuredApiRoot]] as const) : []),
+    ] as [string, string][]) {
+      const started = Date.now();
+      try {
+        const r = await fetch(`${origin}/`, { signal: AbortSignal.timeout(15_000) });
+        parts.push(`${label} HTTP ${r.status} in ${Date.now() - started} ms`);
+      } catch (e) {
+        const err = e as Error & { cause?: { code?: string; message?: string } };
+        parts.push(`${label} ${err.name}: ${err.cause?.code ?? err.cause?.message ?? err.message} after ${Date.now() - started} ms`);
+      }
     }
+    void target;
     reachability = parts.join(" · ");
     log(`api.telegram.org reachability — ${reachability}`);
   })();
@@ -118,7 +132,7 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     // effect, and the connection still ETIMEDOUTs in ~2 s while the same instance
     // talks to Neon and the Somnia RPC without trouble. Unset, grammY uses Telegram
     // directly, which is right anywhere the route works.
-    const apiRoot = (process.env.TELEGRAM_API_ROOT ?? "").trim().replace(/\/$/, "");
+    const apiRoot = configuredApiRoot;
     const bot = apiRoot ? new Bot(token, { client: { apiRoot } }) : new Bot(token);
     if (apiRoot) log(`Bot API via ${apiRoot}`);
 
@@ -208,6 +222,8 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
         // never got as far as polling, that is the thing to report.
         lastError: startupError ?? p?.lastError ?? null,
         restarts: p?.restarts ?? 0,
+        /** Empty string means Telegram directly — which is the case that was ambiguous. */
+        apiRoot: configuredApiRoot,
         reachability,
       };
     },
