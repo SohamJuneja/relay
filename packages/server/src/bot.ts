@@ -33,7 +33,7 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     return {
       stop: async () => undefined,
       running: () => false,
-      status: () => ({ enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: "TELEGRAM_BOT_TOKEN is not set", restarts: 0 }),
+      status: () => ({ enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: "TELEGRAM_BOT_TOKEN is not set", restarts: 0, reachability: null }),
     };
   }
 
@@ -42,6 +42,25 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
   let isRunning = () => false;
   let lastUpdateAt: number | null = null;
   let startupError: string | null = null;
+  let reachability: string | null = null;
+
+  // Can this host reach Telegram at all?
+  //
+  // The token check timing out says "no answer" and nothing about why. A plain
+  // request to the API root, with its error surfaced verbatim, distinguishes the
+  // cases that need different fixes: ENOTFOUND is DNS, ETIMEDOUT/ECONNREFUSED is the
+  // network path, a 4xx/5xx means we got there and the problem is elsewhere.
+  void (async () => {
+    const started = Date.now();
+    try {
+      const r = await fetch("https://api.telegram.org/", { signal: AbortSignal.timeout(15_000) });
+      reachability = `HTTP ${r.status} in ${Date.now() - started} ms`;
+    } catch (e) {
+      const err = e as Error & { cause?: { code?: string } };
+      reachability = `${err.name}: ${err.cause?.code ?? err.message} after ${Date.now() - started} ms`;
+    }
+    log(`api.telegram.org reachability — ${reachability}`);
+  })();
   let pollingState: (() => { running: boolean; lastPollAt: number | null; lastError: string | null; restarts: number }) | null = null;
 
   // Imported lazily so a deployment without a bot never loads grammY at all — on a
@@ -165,6 +184,7 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
         // never got as far as polling, that is the thing to report.
         lastError: startupError ?? p?.lastError ?? null,
         restarts: p?.restarts ?? 0,
+        reachability,
       };
     },
     async stop() {

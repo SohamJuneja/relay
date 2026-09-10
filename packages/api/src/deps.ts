@@ -87,6 +87,8 @@ export interface BotStatus {
   lastUpdateAt: string | null;
   lastError: string | null;
   restarts: number;
+  /** Whether this host can reach api.telegram.org at all, and how it failed if not. */
+  reachability: string | null;
 }
 
 export interface ApiDeps {
