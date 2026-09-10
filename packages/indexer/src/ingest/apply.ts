@@ -28,6 +28,24 @@ export interface ChunkMeta {
    * keeps everything, which is what a general-purpose indexer would want.
    */
   ordersVenueId?: string | undefined;
+  /**
+   * Skip `orders` rows placed before this unix second.
+   *
+   * Retention keeps orders for hours, but the backfill ignored it completely: a
+   * 24-hour catch-up wrote every order in that window — ~800k rows, ~500 MB — and
+   * the first prune after it finished deleted almost all of them. That filled a
+   * 0.5 GB Neon project mid-backfill, and the writes it could not finish are what
+   * stopped the indexer.
+   *
+   * Not writing a row that the next prune would delete costs nothing real. The
+   * quoted-both-sides latch reads `plan.orders`, not the rows written here, so the
+   * zero-fill and quoted-but-untaken statistics are unaffected. What is given up is
+   * attribution for a fill whose order is older than the retention window — and that
+   * order was going to be deleted within the hour regardless.
+   *
+   * Undefined writes everything, which is what a one-off archival run would want.
+   */
+  orderMinTs?: bigint | undefined;
 }
 
 const s = (v: bigint) => v.toString();
@@ -183,6 +201,10 @@ export async function applyPlan(db: Db, plan: ChunkPlan, meta: ChunkMeta): Promi
       // An order with no market binding yet cannot be placed on a venue, and the row
       // exists only to attribute a later fill — which the in-chunk lookup already did.
       orderRows = plan.orders.filter((o) => o.marketId && onVenue.has(o.marketId.toLowerCase()));
+    }
+    if (meta.orderMinTs !== undefined) {
+      const min = meta.orderMinTs;
+      orderRows = orderRows.filter((o) => tsOf(o.placedBlock) >= min);
     }
     if (orderRows.length) {
       await chunked(orderRows, (rows) =>

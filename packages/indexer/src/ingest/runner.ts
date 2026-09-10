@@ -10,6 +10,7 @@ import { decodeLog, POOL_TOPICS } from "./decode.js";
 import { EpochIndex } from "./epochs.js";
 import { streamChunks, type Chunk } from "./fetch.js";
 import { planChunk } from "./plan.js";
+import { DEFAULT_RETENTION, pruneOldRows } from "../db/retention.js";
 
 export interface RunnerDeps {
   cfg: IndexerConfig;
@@ -47,6 +48,16 @@ async function header(client: PublicClient, n: bigint): Promise<{ hash: Hex; par
 }
 
 /**
+ * The oldest order worth writing: retention's cutoff, minus an hour of slack so an
+ * order placed just inside the window is never dropped by rounding.
+ */
+function orderMinTs(): bigint {
+  const days = DEFAULT_RETENTION.orderDays;
+  if (!Number.isFinite(days) || days <= 0) return 0n;
+  return BigInt(Math.floor(Date.now() / 1000 - days * 86_400) - 3_600);
+}
+
+/**
  * Two-pass ingest of [from, to]. Returns row counts. Headers for the two
  * boundary blocks give block-time interpolation and the reorg anchor.
  */
@@ -79,6 +90,9 @@ export async function processRange(d: RunnerDeps, st: RunnerState, from: bigint,
       // Orders are stored only for the venue Relay reports on; fills, markets and
       // stats stay chain-wide. See db/retention.ts for why.
       ordersVenueId: cfg.defaultVenueId,
+      // …and only as far back as retention keeps them. Writing an order the next
+      // prune deletes costs storage and buys nothing.
+      orderMinTs: orderMinTs(),
     });
     counts = sumCounts(counts, res);
   };
@@ -106,7 +120,7 @@ export interface BackfillResult {
 }
 
 /** Catch up from the cursor (or START_BLOCK / now − BACKFILL_HOURS) to head − confirmations. */
-export async function backfill(d: RunnerDeps, st: RunnerState, opts: { segmentChunks?: number } = {}): Promise<BackfillResult> {
+export async function backfill(d: RunnerDeps, st: RunnerState, opts: { segmentChunks?: number; pruneEverySegments?: number } = {}): Promise<BackfillResult> {
   const { cfg, client, db, log } = d;
   const t0 = Date.now();
   const head = (await client.getBlockNumber()) - cfg.confirmations;
@@ -125,12 +139,29 @@ export async function backfill(d: RunnerDeps, st: RunnerState, opts: { segmentCh
   const segment = cfg.chunkSize * BigInt(opts.segmentChunks ?? 20);
   let counts = zeroCounts();
   log(`backfill ${from} → ${head} (${head - from + 1n} blocks, segments of ${segment})`);
+  // Retention has to be enforced DURING the backfill, not after it. Pruning used to
+  // live only in the tail loop, which runs once the backfill finishes — so a long
+  // catch-up accumulated every row it touched and pruned none of them. On a 0.5 GB
+  // database that ran out of storage before the backfill ever reached the tail.
+  let sincePrune = 0;
   for (let s = from; s <= head; s += segment) {
     const e = s + segment - 1n < head ? s + segment - 1n : head;
     const t1 = Date.now();
     const c = await processRange(d, st, s, e, startBlock);
     counts = sumCounts(counts, c);
     log(`  [${s}..${e}] +${c.markets} markets +${c.orders} orders +${c.fills} fills +${c.orderUpdates} updates (${Date.now() - t1} ms) · pools ${st.pools.size}`);
+
+    if (++sincePrune >= (opts.pruneEverySegments ?? 5) && e < head) {
+      sincePrune = 0;
+      try {
+        const pr = await pruneOldRows(db);
+        const n = pr.orders + pr.rawEvents + pr.redemptions + pr.protocolFees + pr.blocks;
+        if (n) log(`  prune: -${pr.orders} orders -${pr.rawEvents} raw -${pr.redemptions} redemptions -${pr.protocolFees} fees -${pr.blocks} blocks (${pr.ms} ms)`);
+      } catch (err) {
+        // Housekeeping must not abort a catch-up that is otherwise working.
+        log(`  prune failed: ${(err as Error).message.split("\n")[0]}`);
+      }
+    }
   }
   return { from, to: head, blocks: head - from + 1n, durationMs: Date.now() - t0, counts };
 }

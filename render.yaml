@@ -91,6 +91,15 @@ services:
       # of 1.6 GB. With these settings the database settles at roughly 106 MB of
       # rolling data plus ~11 MB/day of permanent history — about 430 MB after a
       # month, inside Neon's 512 MB free tier for five to six weeks.
+      #
+      # That figure only ever described the TAIL. The backfill used to ignore
+      # retention completely: pruning lived in the tail loop, which does not start
+      # until the backfill finishes, so a 24-hour catch-up wrote every order in the
+      # window — ~800k rows, ~500 MB — and filled the database before it got there.
+      # Two changes fixed it, both in packages/indexer/src/ingest: the backfill prunes
+      # between segments, and an order older than ORDER_RETENTION_DAYS is not written
+      # at all rather than written and deleted minutes later. A 24-hour backfill now
+      # lands ~3 hours of orders, not 24.
       - key: ORDER_RETENTION_DAYS
         value: "0.125"
       - key: RAW_EVENT_RETENTION_DAYS
