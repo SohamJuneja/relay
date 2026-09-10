@@ -89,6 +89,26 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
       }
     }
     void target;
+    // And the exact call that is failing: getMe, through whichever base the bot uses.
+    // Status only — never the URL, which carries the token.
+    {
+      const base = configuredApiRoot || "https://api.telegram.org";
+      const started = Date.now();
+      try {
+        const r = await fetch(`${base}/bot${token}/getMe`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+          signal: AbortSignal.timeout(15_000),
+        });
+        const body = (await r.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+        parts.push(`getMe ${r.status}${body?.ok ? " ok" : body?.description ? ` ${body.description}` : ""} in ${Date.now() - started} ms`);
+      } catch (e) {
+        const err = e as Error & { cause?: { code?: string; message?: string } };
+        parts.push(`getMe ${err.name}: ${err.cause?.code ?? err.cause?.message ?? err.message} after ${Date.now() - started} ms`);
+      }
+    }
+
     reachability = parts.join(" · ");
     log(`api.telegram.org reachability — ${reachability}`);
   })();
