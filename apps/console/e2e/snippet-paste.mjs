@@ -43,7 +43,10 @@ report.clipboard = await page.evaluate(() => navigator.clipboard.readText());
 const rendered = (await page.getByTestId("snippet").innerText()).trim();
 log("clipboard:");
 for (const line of report.clipboard.split("\n")) log(`  ${line}`);
-report.matchesRendered = report.clipboard.trim() === rendered;
+// The browser normalises clipboard line endings to CRLF on Windows, so compare the
+// content rather than the separators.
+const norm = (t) => t.replace(/\r/g, "").trim();
+report.matchesRendered = norm(report.clipboard) === norm(rendered);
 log(`clipboard === rendered block: ${report.matchesRendered}`);
 
 report.scriptUrl = /src="([^"]+)"/.exec(report.clipboard)?.[1] ?? null;
