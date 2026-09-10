@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo 'the build command installs at the workspace root'",
+  "buildCommand": "corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @relay/embed build && pnpm --filter @relay/telegram miniapp:build",
+  "outputDirectory": "packages/telegram/dist-miniapp",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors https://web.telegram.org https://*.telegram.org 'self'"
+        }
+      ]
+    }
+  ]
+}

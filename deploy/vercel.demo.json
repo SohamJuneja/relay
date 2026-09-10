@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo 'the build command installs at the workspace root'",
+  "buildCommand": "corepack enable && pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @relay/embed build && pnpm --filter @relay/demo-site build",
+  "outputDirectory": "apps/demo-site/dist"
+}

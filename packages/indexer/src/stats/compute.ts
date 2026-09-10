@@ -142,7 +142,16 @@ export async function computeVenueWindow(db: Db, venueId: string, hours: number,
   const q = await db.execute(sql`
     select m.market_id, m.asset, m.interval_sec, m.expiry,
            coalesce(f.fills, 0)::int as fills, coalesce(f.notional, 0)::text as notional, coalesce(f.takers, 0)::int as takers,
-           coalesce(o.rested_bids, 0)::int as rested_bids, coalesce(o.rested_asks, 0)::int as rested_asks
+           -- The latched flags first, with the order rows only as a fallback for
+           -- markets ingested before the flags existed.
+           --
+           -- This read the order rows ALONE, which quietly stopped being a measure of
+           -- anything once orders started aging out: a window older than
+           -- ORDER_RETENTION_DAYS has no order rows left, so it counted as "never
+           -- quoted" and quoted-but-untaken collapsed toward zero. The venue-wide
+           -- figure, computed from the latch, said 34% while this one said 3%.
+           (case when (m.had_bid or coalesce(o.rested_bids, 0) > 0) then 1 else 0 end)::int as rested_bids,
+           (case when (m.had_ask or coalesce(o.rested_asks, 0) > 0) then 1 else 0 end)::int as rested_asks
     from markets m
     left join lateral (select count(*) as fills, sum(notional) as notional, count(distinct taker_owner) as takers from fills where fills.market_id = m.market_id) f on true
     left join lateral (

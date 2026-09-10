@@ -36,3 +36,6 @@ artifacts/
 dist-miniapp/
 packages/telegram/miniapp/public/relay.iife.js
 apps/demo-site/public/relay.iife.js
+
+.vercel
+.env*

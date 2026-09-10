@@ -1,0 +1,12 @@
+# Keep the upload to what a build needs. node_modules and dist are rebuilt on Vercel;
+# artifacts and reference clones are large and irrelevant to it.
+node_modules
+**/node_modules
+dist
+**/dist
+dist-miniapp
+**/dist-miniapp
+artifacts
+reference
+*.log
+.git

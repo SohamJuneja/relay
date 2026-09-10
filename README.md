@@ -10,7 +10,7 @@ directly so the publisher who sent an order can be credited for it — on chain,
 order itself, not in our database.
 
 ```html
-<script src="https://relay-cdn.vercel.app/relay.iife.js"></script>
+<script src="https://relay-cdn-sohamjunejas-projects.vercel.app/relay.iife.js"></script>
 <div data-relay-market data-partner="3" data-builder="0xYourBuilderAddress"></div>
 ```
 
@@ -18,23 +18,23 @@ order itself, not in our database.
 
 | | |
 | --- | --- |
-| Partner console | _pending deploy_ |
-| Public venue data | _pending deploy_ |
-| Block Ledger (demo publication) | _pending deploy_ |
-| Telegram mini-app | _pending deploy_ |
-| API + OpenAPI | _pending deploy_ |
-| Widget bundle (CDN) | _pending deploy_ |
+| Partner console | <https://relay-console-sohamjunejas-projects.vercel.app> |
+| Public venue data | <https://relay-console-sohamjunejas-projects.vercel.app/ecosystem> |
+| Block Ledger (demo publication) | <https://relay-demo-sohamjunejas-projects.vercel.app> |
+| Telegram mini-app | <https://relay-miniapp-sohamjunejas-projects.vercel.app> |
+| API + OpenAPI | <https://relay-server-htey.onrender.com/health> · [docs](https://relay-server-htey.onrender.com/docs) · [openapi.json](https://relay-server-htey.onrender.com/docs/json) |
+| Widget bundle (CDN) | <https://relay-cdn-sohamjunejas-projects.vercel.app/relay.iife.js> |
 | Telegram bot | [@RelaySomniaBot](https://t.me/RelaySomniaBot) |
 
 ## The number this is built around
 
-From `GET /v1/stats/overview` on the DreamDEX venue, **9 September 2026, 18:34 UTC**:
+From `GET /v1/stats/overview` on the DreamDEX venue, **10 September 2026, 08:18 UTC**:
 
 | | |
 | --- | --- |
-| Windows that expired with **no trade at all** | **34.1%** |
-| …of which liquidity was **quoted on both sides and refused** | **33.6%** |
-| 24-hour notional on the venue | **$104,556** tUSDC across 14,321 fills |
+| Windows that expired with **no trade at all** | **34.5%** |
+| …of which liquidity was **quoted on both sides and refused** | **34.5%** |
+| 24-hour notional on the venue | **$60,669** tUSDC across 17,244 fills |
 
 A third of this venue's markets are tradeable and go untraded. Every number above is
 derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's.
