@@ -1,7 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { ThemeToggle, useTheme } from "./components/ui";
 import { version as widgetVersion } from "@relay/embed";
-import { API_URL, CDN_URL } from "./config";
+import { API_URL, CDN_URL, DEMO_SITE_URL, REPO_URL, TELEGRAM_URL } from "./config";
 import { Landing } from "./routes/Landing";
 import { Register } from "./routes/Register";
 import { Dashboard } from "./routes/Dashboard";
@@ -22,6 +22,7 @@ export function App() {
           <NavLink to="/">Overview</NavLink>
           <NavLink to="/ecosystem">Ecosystem</NavLink>
           <NavLink to="/dashboard">Dashboard</NavLink>
+          <NavLink to="/try">Try it</NavLink>
           <NavLink to="/docs/embed">Docs</NavLink>
         </nav>
         <span className="grow" />
@@ -59,6 +60,21 @@ export function App() {
         <a href={`${CDN_URL}/relay.iife.js`} target="_blank" rel="noreferrer noopener">
           widget v{widgetVersion}
         </a>
+        {DEMO_SITE_URL ? (
+          <a href={DEMO_SITE_URL} target="_blank" rel="noreferrer noopener">
+            Demo publication
+          </a>
+        ) : null}
+        {TELEGRAM_URL ? (
+          <a href={TELEGRAM_URL} target="_blank" rel="noreferrer noopener">
+            Telegram bot
+          </a>
+        ) : null}
+        {REPO_URL ? (
+          <a href={REPO_URL} target="_blank" rel="noreferrer noopener">
+            Source
+          </a>
+        ) : null}
         <span className="muted">Attribution is recorded on chain; every number here is derived from Somnia logs.</span>
       </footer>
     </div>

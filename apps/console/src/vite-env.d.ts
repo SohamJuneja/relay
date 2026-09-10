@@ -16,6 +16,12 @@ interface ImportMetaEnv {
   readonly VITE_DEMO_PARTNER_ID?: string;
   /** That partner's builder address. The two must belong together — see config.ts. */
   readonly VITE_DEMO_BUILDER?: string;
+  /** The demo publication that embeds the widget. */
+  readonly VITE_DEMO_SITE_URL?: string;
+  /** The Telegram bot, e.g. https://t.me/RelaySomniaBot */
+  readonly VITE_TELEGRAM_URL?: string;
+  /** The public source repository. */
+  readonly VITE_REPO_URL?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

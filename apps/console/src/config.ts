@@ -71,6 +71,22 @@ export async function assertDemoPartnerMatchesBuilder(): Promise<void> {
   }
 }
 
+/**
+ * The rest of Relay, so the console is a way in rather than a dead end.
+ *
+ * Somebody handed one link lands on the overview and can currently reach the console's
+ * own pages and nothing else — not the demo publication, not the bot, not the source.
+ * These are optional: a build without them simply omits the link rather than rendering
+ * one that goes nowhere.
+ */
+const optional = (name: keyof ImportMetaEnv): string | null => {
+  const v = import.meta.env[name];
+  return v ? String(v).replace(/\/$/, "") : null;
+};
+export const DEMO_SITE_URL = optional("VITE_DEMO_SITE_URL");
+export const TELEGRAM_URL = optional("VITE_TELEGRAM_URL");
+export const REPO_URL = optional("VITE_REPO_URL");
+
 /** The exact snippet a partner pastes, with the CDN this build was configured for. */
 // data-api is not optional decoration. The widget's built-in default is
 // http://localhost:8787 — right for someone developing against a local API, and
