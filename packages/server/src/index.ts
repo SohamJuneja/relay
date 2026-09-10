@@ -49,12 +49,14 @@ const RUNTIME_REQUIRES = [
   "fast-json-stringify/lib/validator",
   // External on purpose: node-fetch v2 identifies an AbortSignal by class name, and a
   // bundler renaming identifiers breaks that. External means it must be resolvable
-  // from node_modules at run time, and a dry start without a bot token never loads it
-  // — so the one failure mode this change introduces is exactly the one nothing else
+  // from node_modules at run time, and a dry start without a bot token never loads
+  // grammY — so this is the one failure the change could introduce that nothing else
   // would catch.
+  //
+  // Only grammy itself: node-fetch and abort-controller are ITS dependencies, and
+  // pnpm keeps those in grammY's own tree where grammY resolves them. They are not
+  // resolvable from here and are not supposed to be.
   "grammy",
-  "node-fetch",
-  "abort-controller",
 ];
 
 /**
@@ -167,6 +169,18 @@ async function dryStart(): Promise<void> {
     process.exit(1);
   }
   log(`resolved ${RUNTIME_REQUIRES.length} runtime requires`);
+
+  // Resolving grammY is not the same as loading it: the bug this guards against lives
+  // inside its Node shim, which pulls in node-fetch and abort-controller from its own
+  // tree. Import it for real.
+  try {
+    const { Bot } = await import("grammy");
+    if (typeof Bot !== "function") throw new Error("grammy loaded but exports no Bot");
+    log("grammy loads and exports Bot");
+  } catch (e) {
+    log(`FAIL — grammy is external but does not load: ${(e as Error).message}`);
+    process.exit(1);
+  }
 
   // The migrations, resolved exactly the way production resolves them — through the
   // indexer's own function, so this cannot pass while the real path is wrong. Reading
