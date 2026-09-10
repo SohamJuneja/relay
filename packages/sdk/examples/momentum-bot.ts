@@ -22,16 +22,16 @@ const relay = createRelay({
 const WINDOWS = Number(process.env.WINDOWS ?? 2);
 
 for (let i = 0; i < WINDOWS; i++) {
-  // winner: 0 = YES (UP), 1 = NO (DOWN). Resolved windows only.
+  // status 4 = Resolved. The API names the winner "UP"/"DOWN" rather than indexing it.
   const recent = await relay.markets.recent({ asset: "BTC", intervalSec: 300, limit: 12 });
-  const settled = recent.filter((m) => m.status === 4).slice(0, 3);
+  const settled = recent.filter((m) => m.status === 4 && m.winner).slice(0, 3);
   if (settled.length < 3) {
     console.log("not enough settled windows yet, waiting");
     await new Promise((r) => setTimeout(r, 30_000));
     continue;
   }
 
-  const ups = settled.filter((m) => (m as { winner?: number | null }).winner === 0).length;
+  const ups = settled.filter((m) => m.winner === "UP").length;
   const side = ups >= 2 ? "UP" : "DOWN";
   console.log(`last 3 windows: ${ups} UP / ${3 - ups} DOWN → buying ${side}`);
 

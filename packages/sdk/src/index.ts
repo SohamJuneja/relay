@@ -54,6 +54,9 @@ export interface AgentMarket {
   secondsToExpiry: number;
   question: string;
   openingPriceRaw: string | null;
+  /** "UP" | "DOWN" once resolved, null before. Not an index — the API names it. */
+  winner?: "UP" | "DOWN" | null | undefined;
+  voided?: boolean | undefined;
   book?: { bestBid: number | null; bestAsk: number | null } | undefined;
 }
 
@@ -89,7 +92,7 @@ export interface AgentPosition {
   intervalSec: number;
   expiry: number;
   status: number;
-  winner: number | null;
+  winner: "UP" | "DOWN" | null;
   voided: boolean;
   yes: number;
   no: number;
@@ -119,6 +122,16 @@ export interface Relay {
 const clean = (u: string) => u.replace(/\/$/, "");
 
 export function createRelay(cfg: RelayConfig): Relay {
+  // Named up front, because the alternative is a TypeError from inside a helper three
+  // frames down — which is what an unset env var actually looked like the first time
+  // the example bot ran.
+  for (const k of ["rpcUrl", "privateKey", "apiUrl"] as const) {
+    if (!cfg[k]) throw new Error(`createRelay: ${k} is required (got ${cfg[k] === undefined ? "undefined" : JSON.stringify(cfg[k])})`);
+  }
+  if (!Number.isInteger(cfg.partnerId) || cfg.partnerId <= 0) {
+    throw new Error(`createRelay: partnerId must be a positive integer (got ${JSON.stringify(cfg.partnerId)}). Register one with POST /v1/partners.`);
+  }
+
   const network: Network = cfg.network ?? "testnet";
   const decimals = COLLATERAL_DECIMALS[network];
   const one = 10 ** decimals;

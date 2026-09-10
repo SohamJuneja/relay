@@ -36,7 +36,9 @@ describe("createRelay", () => {
   });
 
   it("defaults the builder to the zero address rather than inventing one", () => {
-    const relay = make({ builder: undefined });
+    // Built directly: under exactOptionalPropertyTypes, "absent" and "present and
+    // undefined" are different types, and absent is the case that matters here.
+    const relay = createRelay({ rpcUrl: "https://rpc.invalid", privateKey: KEY, apiUrl: "https://api.invalid", partnerId: 14 });
     expect(relay.builder).toBe("0x0000000000000000000000000000000000000000");
   });
 
@@ -105,5 +107,22 @@ describe("the tag every agent order carries", () => {
 
   it("gives agent a stable id, so old fills keep meaning what they meant", () => {
     expect(SURFACE.AGENT).toBe(7);
+  });
+});
+
+describe("configuration errors name the field", () => {
+  // An unset env var used to surface as "Cannot read properties of undefined
+  // (reading 'replace')" from inside a helper, which says nothing about what to fix.
+  it("names a missing apiUrl", () => {
+    expect(() => createRelay({ rpcUrl: "https://rpc.invalid", privateKey: KEY, apiUrl: undefined as never, partnerId: 1 })).toThrow(/apiUrl is required/);
+  });
+
+  it("names a missing rpcUrl", () => {
+    expect(() => createRelay({ rpcUrl: "" as never, privateKey: KEY, apiUrl: "https://api.invalid", partnerId: 1 })).toThrow(/rpcUrl is required/);
+  });
+
+  it("rejects a partnerId that is not a positive integer, and says where to get one", () => {
+    expect(() => createRelay({ rpcUrl: "https://rpc.invalid", privateKey: KEY, apiUrl: "https://api.invalid", partnerId: NaN })).toThrow(/partnerId must be a positive integer/);
+    expect(() => createRelay({ rpcUrl: "https://rpc.invalid", privateKey: KEY, apiUrl: "https://api.invalid", partnerId: 0 })).toThrow(/POST \/v1\/partners/);
   });
 });
