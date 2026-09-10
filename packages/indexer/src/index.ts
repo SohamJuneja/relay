@@ -8,6 +8,7 @@ export * from "./ingest/epochs.js";
 export * from "./ingest/plan.js";
 export * from "./ingest/apply.js";
 export * from "./ingest/runner.js";
+export * from "./ingest/history.js";
 export * from "./enrich/oracle.js";
 export * from "./stats/compute.js";
 export * from "./price/ticker.js";

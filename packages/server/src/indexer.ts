@@ -7,14 +7,31 @@
 import type { PublicClient } from "viem";
 import { loadConfig, type Db } from "@relay/indexer";
 import { enrichMarkets, fillPendingOpenings } from "@relay/indexer";
-import { backfill, loadState, tailOnce } from "@relay/indexer";
+import { loadCursor, loadState, tailOnce } from "@relay/indexer";
+import { coveredHours, jumpLiveCursor, loadHistory, saveHistory, seedLiveCursor, walkHistoryBackwards } from "@relay/indexer";
 import { computePartnerStats, computeVenueStats } from "@relay/indexer";
 import { pruneOldRows } from "@relay/indexer";
 import { PriceTicker } from "@relay/indexer";
 
 export interface IndexerHandle {
   stop(): Promise<void>;
+  /** Both cursors and how much history is actually covered, for /health. */
+  progress(): IndexerProgress;
 }
+
+export interface IndexerProgress {
+  liveCursor: bigint | null;
+  historyCursor: bigint | null;
+  historyTarget: bigint | null;
+  historyCoveredHours: number;
+  historyComplete: boolean;
+}
+
+/**
+ * How far behind the live cursor may be before a restart jumps it to the head instead
+ * of tailing forward through the gap. An hour of a 100 ms chain.
+ */
+const JUMP_IF_BEHIND = 36_000n;
 
 export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: unknown[]) => void }): IndexerHandle {
   const { db, client } = opts;
@@ -23,6 +40,41 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
 
   let stopping = false;
   let ticker: PriceTicker | null = null;
+  let liveCursor: bigint | null = null;
+  let historyCursor: bigint | null = null;
+  let historyTarget: bigint | null = null;
+  let historyComplete = false;
+  let liveStart: bigint | null = null;
+  let historyLoop: Promise<void> | null = null;
+
+  // The history walk is its own supervised loop. It is slow, it is allowed to fail,
+  // and neither of those may affect the tail — which is the thing keeping the sites
+  // alive.
+  const startHistoryLoop = (deps: Parameters<typeof walkHistoryBackwards>[0], st: Parameters<typeof walkHistoryBackwards>[1]) => {
+    if (historyLoop) return;
+    historyLoop = (async () => {
+      let delay = 5_000;
+      while (!stopping && !historyComplete) {
+        try {
+          const res = await walkHistoryBackwards(deps, st, {
+            liveStart: liveStart ?? 0n,
+            target: historyTarget ?? 0n,
+            segment: cfg.chunkSize * 20n,
+            stopping: () => stopping,
+          });
+          historyCursor = res.covered.from;
+          historyComplete = res.done;
+          if (res.done) return;
+          delay = 5_000;
+        } catch (e) {
+          if (stopping) return;
+          log(`history: ${(e as Error).message.split("\n")[0]} — retrying in ${delay / 1000}s`);
+          await sleep(delay, () => stopping);
+          delay = Math.min(delay * 2, 120_000);
+        }
+      }
+    })().catch((e) => log(`history supervisor crashed: ${(e as Error).message}`));
+  };
 
   const run = async (): Promise<void> => {
     // A restart makes a fresh ticker, so the previous one must go first or the process
@@ -33,14 +85,56 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
     const st = await loadState(db);
     const deps = { cfg, client, db, log };
 
-    // Catch up. On a cold database this is the 24 hours the README promises; on a
-    // restart the cursor is already there and this returns in a second.
-    const t0 = Date.now();
-    const bf = await backfill(deps, st);
-    log(`caught up: ${bf.blocks} blocks in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    // Tail first.
+    //
+    // This used to backfill 24 hours before serving anything, which meant a deploy
+    // took the sites down for as long as the backfill ran: no live markets, no books,
+    // a widget that could not paint. The chain's recent blocks are what every surface
+    // actually reads, so the cursor is seeded just behind the head and the tail starts
+    // at once. History is filled in behind it by a second loop.
+    const head = (await client.getBlockNumber()) - cfg.confirmations;
+    const seedAt = head - 50n;
+    historyTarget = head - BigInt(Math.round(cfg.backfillHours * 3600 * 10));
+    if (historyTarget < 1n) historyTarget = 1n;
+
+    const existing = await loadCursor(db, cfg.network);
+    let jumped = false;
+    if (!existing) {
+      const h = await client.getBlock({ blockNumber: seedAt });
+      await seedLiveCursor(db, cfg.network, seedAt, h.hash);
+      log(`live cursor seeded at ${seedAt} (head ${head}) — tailing now, history fills in behind`);
+      jumped = true;
+    } else if (head - existing.lastBlock > JUMP_IF_BEHIND) {
+      // A cursor this far back means the process was away — a slept free instance, or
+      // an outage. Tailing forward through the gap would keep every surface dark for
+      // as long as it took; jumping to the head and handing the gap to the history
+      // walk keeps the sites alive and loses nothing.
+      const h = await client.getBlock({ blockNumber: seedAt });
+      await jumpLiveCursor(db, cfg.network, seedAt, h.hash);
+      log(`live cursor was ${head - existing.lastBlock} blocks behind — jumped to ${seedAt}; the gap is now the history walk's`);
+      jumped = true;
+    }
+    liveStart = (await loadCursor(db, cfg.network))?.startBlock ?? seedAt;
+
+    const stored = await loadHistory(db, cfg.network);
+    if (jumped || !stored) {
+      // Start the walk at the new live cursor so the skipped gap is covered. Below the
+      // gap it will re-walk ground it already has; every write on that path is
+      // idempotent, so this costs time and not correctness.
+      await saveHistory(db, cfg.network, liveStart, historyTarget);
+      historyCursor = liveStart;
+      historyComplete = false;
+    } else {
+      // Report what the last run reached before this one's first segment lands, so
+      // /health is right immediately after a restart rather than a minute later.
+      historyCursor = stored.lowest;
+      historyComplete = stored.lowest <= historyTarget;
+    }
 
     ticker = new PriceTicker({ network: cfg.network, indexerUrl: cfg.indexerUrl, wsRpcUrl: cfg.wsRpcUrl, assets: cfg.priceAssets, db, log });
     ticker.start();
+
+    startHistoryLoop(deps, st);
 
     let lastEnrich = 0;
     let lastOpening = 0;
@@ -51,6 +145,7 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
       const t = Date.now();
       try {
         const r = await tailOnce(deps, st);
+        liveCursor = r.cursor;
         if (r.applied > 0n || r.reorg) log(`+${r.applied} blocks → ${r.cursor} (lag ${r.head - r.cursor})${r.reorg ? " after REORG" : ""}`);
 
         if (Date.now() - lastOpening > 2_000) {
@@ -114,10 +209,17 @@ export function startIndexer(opts: { db: Db; client: PublicClient; log: (...a: u
   })().catch((e) => log(`supervisor crashed: ${(e as Error).message}`));
 
   return {
+    progress: () => ({
+      liveCursor,
+      historyCursor,
+      historyTarget,
+      historyCoveredHours: coveredHours(historyCursor, liveCursor),
+      historyComplete,
+    }),
     async stop() {
       stopping = true;
       await ticker?.stop().catch(() => undefined);
-      await loop;
+      await Promise.allSettled([loop, historyLoop ?? Promise.resolve()]);
     },
   };
 }

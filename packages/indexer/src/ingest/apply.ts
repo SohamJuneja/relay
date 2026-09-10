@@ -154,8 +154,20 @@ export async function applyPlan(db: Db, plan: ChunkPlan, meta: ChunkMeta): Promi
       counts.markets += plan.markets.length;
     }
     // epochs
-    for (const e of plan.epochsClosed) {
-      await tx.update(poolEpochs).set({ toBlock: e.toBlock }).where(eq(poolEpochs.marketId, e.marketId.toLowerCase()));
+    //
+    // Every loop in this function used to issue one UPDATE per row. That is invisible
+    // against a local database and ruinous across a region boundary: the database is
+    // in us-east-2 and the service in Oregon, so each await is a ~65 ms round trip and
+    // a chunk spent most of its time waiting rather than working. Each of these is now
+    // one statement that carries all its rows in a VALUES join.
+    if (plan.epochsClosed.length) {
+      const vals = sql.join(
+        plan.epochsClosed.map((e) => sql`(${e.marketId.toLowerCase()}, ${e.toBlock}::bigint)`),
+        sql`, `,
+      );
+      await tx.execute(
+        sql`update pool_epochs p set to_block = v.to_block from (values ${vals}) as v(market_id, to_block) where p.market_id = v.market_id`,
+      );
     }
     if (plan.epochsOpened.length) {
       await tx
@@ -163,27 +175,55 @@ export async function applyPlan(db: Db, plan: ChunkPlan, meta: ChunkMeta): Promi
         .values(plan.epochsOpened.map((e) => ({ pool: e.pool, marketId: e.marketId.toLowerCase(), nonce: e.nonce, fromBlock: e.fromBlock, toBlock: e.toBlock })))
         .onConflictDoNothing();
     }
-    for (const r of plan.references) {
-      await tx.update(markets).set({ referenceQuestionId: s(r.referenceQuestionId), updatedAt: new Date() }).where(eq(markets.marketId, r.marketId.toLowerCase()));
+    if (plan.references.length) {
+      const vals = sql.join(
+        plan.references.map((r) => sql`(${r.marketId.toLowerCase()}, ${s(r.referenceQuestionId)}::numeric)`),
+        sql`, `,
+      );
+      await tx.execute(
+        sql`update markets m set reference_question_id = v.q, updated_at = now() from (values ${vals}) as v(market_id, q) where m.market_id = v.market_id`,
+      );
     }
-    for (const r of plan.resolved) {
-      await tx
-        .update(markets)
-        .set({
-          status: r.voided ? 5 : 4,
-          voided: r.voided,
-          payoutNumerators: r.payoutNumerators.map(String),
-          payoutDenominator: s(r.payoutDenominator),
-          winner: r.winner,
-          resolvedBlock: r.block,
-          resolvedAt: tsOf(r.block),
-          updatedAt: new Date(),
-        })
-        .where(eq(markets.marketId, r.marketId.toLowerCase()));
+    if (plan.resolved.length) {
+      const vals = sql.join(
+        plan.resolved.map(
+          (r) => sql`(
+            ${r.marketId.toLowerCase()},
+            ${r.voided ? 5 : 4}::smallint,
+            ${r.voided}::boolean,
+            ${JSON.stringify(r.payoutNumerators.map(String))}::jsonb,
+            ${s(r.payoutDenominator)}::numeric,
+            ${r.winner}::smallint,
+            ${r.block}::bigint,
+            ${tsOf(r.block)}::bigint
+          )`,
+        ),
+        sql`, `,
+      );
+      await tx.execute(sql`
+        update markets m set
+          status = v.status, voided = v.voided, payout_numerators = v.nums,
+          payout_denominator = v.den, winner = v.winner,
+          resolved_block = v.blk, resolved_at = v.ts, updated_at = now()
+        from (values ${vals}) as v(market_id, status, voided, nums, den, winner, blk, ts)
+        where m.market_id = v.market_id`);
     }
-    for (const f of plan.finalized) {
-      if (f.marketId) await tx.update(markets).set({ finalized: true, updatedAt: new Date() }).where(eq(markets.marketId, f.marketId.toLowerCase()));
-      else await tx.update(markets).set({ finalized: true, updatedAt: new Date() }).where(and(eq(markets.pool, f.pool), eq(markets.nonce, f.nonce)));
+    // Two shapes: finalization that names the market, and finalization that only
+    // names the pool and nonce it belonged to. One statement each.
+    const finalById = plan.finalized.filter((f) => f.marketId);
+    const finalByPool = plan.finalized.filter((f) => !f.marketId);
+    if (finalById.length) {
+      const ids = finalById.map((f) => f.marketId!.toLowerCase());
+      await tx.update(markets).set({ finalized: true, updatedAt: new Date() }).where(inArray(markets.marketId, ids));
+    }
+    if (finalByPool.length) {
+      const vals = sql.join(
+        finalByPool.map((f) => sql`(${f.pool}, ${f.nonce}::bigint)`),
+        sql`, `,
+      );
+      await tx.execute(
+        sql`update markets m set finalized = true, updated_at = now() from (values ${vals}) as v(pool, nonce) where m.pool = v.pool and m.nonce = v.nonce`,
+      );
     }
     // orders
     //
@@ -260,16 +300,21 @@ export async function applyPlan(db: Db, plan: ChunkPlan, meta: ChunkMeta): Promi
         sides.set(k, cur);
       };
       for (const o of plan.orders) if (o.restedQty !== null && o.restedQty !== undefined && o.restedQty > 0n) noteSide(o.marketId, o.isBid);
-      for (const [marketId, v] of sides) {
-        if (!v.bid && !v.ask) continue;
-        await tx
-          .update(markets)
-          .set({
-            ...(v.bid ? { hadBid: true } : {}),
-            ...(v.ask ? { hadAsk: true } : {}),
-            updatedAt: new Date(),
-          })
-          .where(eq(markets.marketId, marketId));
+      const latch = [...sides].filter(([, v]) => v.bid || v.ask);
+      if (latch.length) {
+        // A latch: once true it stays true, so OR the new observation into the stored
+        // one rather than overwriting it.
+        const vals = sql.join(
+          latch.map(([marketId, v]) => sql`(${marketId}, ${v.bid}::boolean, ${v.ask}::boolean)`),
+          sql`, `,
+        );
+        await tx.execute(sql`
+          update markets m set
+            had_bid = m.had_bid or v.bid,
+            had_ask = m.had_ask or v.ask,
+            updated_at = now()
+          from (values ${vals}) as v(market_id, bid, ask)
+          where m.market_id = v.market_id`);
       }
     }
     // order updates (orders from earlier chunks), batched per update kind

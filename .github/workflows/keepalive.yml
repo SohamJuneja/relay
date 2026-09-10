@@ -1,13 +1,18 @@
-# Keep the free instance awake, and notice when the indexer is stuck.
+# Keep the free instance awake, and notice when the indexer is STUCK.
 #
 # Render's free tier sleeps a service after 15 minutes without traffic, and a sleeping
 # indexer falls behind the chain. A request every five minutes costs nothing and keeps
 # it running.
 #
-# The second job is the one that matters: a service can be awake, answering /health,
-# and hours behind — a stuck cursor looks exactly like a healthy one from outside. So
-# the workflow reads the lag and FAILS when it is large, because a failed run is the
-# only thing GitHub will email about.
+# The second job is the one that matters, and what it watches changed. It used to fail
+# on absolute lag, which was wrong in both directions: it stayed silent through a
+# genuinely dead indexer whose lag happened to be small, and it screamed for hours
+# through a perfectly healthy deploy that was still filling in history. Lag is not a
+# health signal — a cold start is legitimately hundreds of thousands of blocks behind
+# while serving the head correctly.
+#
+# What cannot be healthy is a cursor that has stopped moving. So the alarm is
+# cursorUpdatedAt going stale, and lag is reported as an annotation, not an error.
 
 name: keepalive
 
@@ -23,14 +28,14 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
-      - name: Ping /health and check indexer lag
+      - name: Ping /health and check the cursor is moving
         env:
           API_URL: ${{ vars.API_URL }}
-          # ~200 seconds behind on a 100 ms chain. Enough to ride out a redeploy or a
-          # slow RPC minute; small enough that a genuinely stuck cursor trips it.
-          MAX_LAG_BLOCKS: "2000"
+          # The tail writes every few seconds. Ten minutes of silence is not a slow
+          # chunk, it is a stopped indexer.
+          MAX_CURSOR_AGE_SEC: "600"
         run: |
           set -uo pipefail
           if [ -z "${API_URL:-}" ]; then
@@ -38,32 +43,49 @@ jobs:
             exit 1
           fi
 
-          # A cold free instance takes a while to wake; give it three tries.
+          # A cold free instance takes a while to wake; three tries before calling it
+          # unreachable, which is one of the only two real failures.
+          body=""
           for attempt in 1 2 3; do
             body=$(curl -fsS --max-time 60 "${API_URL%/}/health") && break
             echo "attempt $attempt failed, retrying in 20s"
+            body=""
             sleep 20
           done
 
-          if [ -z "${body:-}" ]; then
+          if [ -z "$body" ]; then
             echo "::error::no response from ${API_URL%/}/health after 3 attempts"
             exit 1
           fi
           echo "$body"
 
           lag=$(echo "$body" | jq -r '.lagBlocks // empty')
-          ok=$(echo "$body" | jq -r '.ok')
           db=$(echo "$body" | jq -r '.dbOk')
+          updated=$(echo "$body" | jq -r '.cursorUpdatedAt // empty')
+          covered=$(echo "$body" | jq -r '.historyCoveredHours // 0')
+          histdone=$(echo "$body" | jq -r '.historyComplete // false')
 
           [ "$db" = "true" ] || { echo "::error::database is unreachable from the API"; exit 1; }
 
-          if [ -z "$lag" ] || [ "$lag" = "null" ]; then
-            echo "::warning::no cursor yet — the indexer has not written a block. This is normal for a few minutes after a first deploy."
+          if [ -z "$updated" ] || [ "$updated" = "null" ]; then
+            echo "::warning::no cursor yet — the indexer has not written a block. Normal for the first minute after a deploy."
             exit 0
           fi
 
-          echo "lag: $lag blocks (ok=$ok)"
-          if [ "$lag" -gt "$MAX_LAG_BLOCKS" ]; then
-            echo "::error::indexer is $lag blocks behind (limit $MAX_LAG_BLOCKS) — it is probably stuck"
+          # Staleness, computed against our own clock rather than the service's, so a
+          # frozen process cannot report itself fresh.
+          now=$(date -u +%s)
+          then_ts=$(date -u -d "$updated" +%s 2>/dev/null || echo 0)
+          if [ "$then_ts" -eq 0 ]; then
+            echo "::warning::could not parse cursorUpdatedAt ($updated)"
+            exit 0
+          fi
+          age=$(( now - then_ts ))
+
+          # Progress, as information. Never a failure: a backfilling service is working.
+          echo "::notice::lag ${lag:-unknown} blocks · cursor written ${age}s ago · history ${covered}h of 24h (complete=${histdone})"
+
+          if [ "$age" -gt "$MAX_CURSOR_AGE_SEC" ]; then
+            echo "::error::the indexer cursor has not moved for ${age}s (limit ${MAX_CURSOR_AGE_SEC}s) — it is stuck, not merely behind"
             exit 1
           fi

@@ -58,6 +58,18 @@ export function Ecosystem() {
         ) : overview.error ? (
           <ErrorState error={overview.error} what="the venue overview" retry={() => void overview.refetch()} />
         ) : overview.data ? (
+          <>
+            {/* A partial window must say so. These are labelled "24h", and until the
+                history walk finishes they are not — a half-loaded venue and a quiet
+                one produce the same small numbers, and only this line tells them
+                apart. */}
+            {!overview.data.historyComplete ? (
+              <p className="note" role="status" style={{ marginBottom: "var(--s3)" }}>
+                <strong>history: {overview.data.historyCoveredHours} of 24 h loaded.</strong> The totals below cover
+                only what has been indexed so far and will keep rising as the rest arrives. Live markets and books are
+                current.
+              </p>
+            ) : null}
           <Kpis>
             <Kpi label="Markets (24h)" value={count(overview.data.markets24h)} />
             <Kpi label="Fills (24h)" value={count(overview.data.fills24h)} />
@@ -79,6 +91,7 @@ export function Ecosystem() {
               title={`cursor ${overview.data.cursorBlock ?? "—"} · head ${overview.data.headBlock}`}
             />
           </Kpis>
+          </>
         ) : null}
 
         <div className="card">

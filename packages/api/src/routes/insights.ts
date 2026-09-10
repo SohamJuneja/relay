@@ -332,7 +332,7 @@ export function registerInsights(app: App, deps: ApiDeps): void {
   const computeOverview = async () => {
     const venueId = deps.cfg.defaultVenueId.toLowerCase();
     const since = Math.floor(Date.now() / 1000) - 24 * 3600;
-    const [head, agg, windows, live, cursor] = await Promise.all([
+    const [head, agg, windows, live, cursor, history] = await Promise.all([
       deps.client.getBlockNumber(),
       deps.db.execute(sql`
         select count(*)::int as fills, coalesce(sum(f.notional),0)::text as notional, count(distinct f.taker_owner)::int as takers
@@ -348,13 +348,22 @@ export function registerInsights(app: App, deps: ApiDeps): void {
         from markets m
         where m.venue_id = ${venueId} and m.expiry >= ${since}::bigint and m.expiry <= ${Math.floor(Date.now() / 1000)}::bigint`),
       deps.db.execute(sql`select count(*)::int as live from markets where venue_id = ${venueId} and status = 1 and expiry > ${Math.floor(Date.now() / 1000)}::bigint`),
-      deps.db.execute(sql`select last_block from cursor limit 1`),
+      // Filtered by network, not `limit 1`. There are two cursor rows now — the live
+      // one and the history walk's — and an unfiltered pick returns whichever the
+      // planner happens to hand back.
+      deps.db.execute(sql`select last_block from cursor where network = ${deps.cfg.network}`),
+      deps.db.execute(sql`select last_block, start_block from cursor where network = ${`${deps.cfg.network}:history`}`),
     ]);
     const a = rowsOf(agg)[0];
     const w = rowsOf(windows)[0];
     const markets24h = num(w?.markets);
     const pct = (n: number, d: number) => (d === 0 ? null : Math.round((1000 * n) / d) / 10);
     const cursorBlock = Number(rowsOf(cursor)[0]?.last_block ?? 0) || null;
+    const histRow = rowsOf(history)[0];
+    const histLowest = histRow ? Number(histRow.last_block) : null;
+    // 100 ms blocks: an hour is 36 000 of them.
+    const historyHours =
+      histLowest === null || cursorBlock === null ? 0 : Math.max(0, Math.round(((cursorBlock - histLowest) / 36_000) * 10) / 10);
     return {
       venueId,
       markets24h,
@@ -370,6 +379,11 @@ export function registerInsights(app: App, deps: ApiDeps): void {
       // apart on a chain with 100 ms blocks, so the cursor can legitimately appear
       // ahead. "-6 blocks behind head" is not a thing a reader should ever see.
       lagBlocks: cursorBlock === null ? null : Math.max(0, Number(head) - cursorBlock),
+      // How much of the 24 hours these totals claim to cover is actually indexed.
+      // Without it a reader cannot tell a quiet venue from a half-loaded one, and the
+      // percentages above look authoritative either way.
+      historyCoveredHours: historyHours,
+      historyComplete: historyHours >= 24,
       computedAt: new Date().toISOString(),
     };
   };
@@ -399,6 +413,8 @@ export function registerInsights(app: App, deps: ApiDeps): void {
             cursorBlock: z.number().nullable(),
             headBlock: z.number(),
             lagBlocks: z.number().nullable(),
+            historyCoveredHours: z.number(),
+            historyComplete: z.boolean(),
             computedAt: z.string(),
           }),
         },

@@ -24,7 +24,7 @@ export interface RunnerState {
   pools: Set<string>;
 }
 
-const sumCounts = (a: ApplyCounts, b: ApplyCounts): ApplyCounts => ({
+export const sumCounts = (a: ApplyCounts, b: ApplyCounts): ApplyCounts => ({
   markets: a.markets + b.markets,
   orders: a.orders + b.orders,
   fills: a.fills + b.fills,
@@ -61,7 +61,18 @@ function orderMinTs(): bigint {
  * Two-pass ingest of [from, to]. Returns row counts. Headers for the two
  * boundary blocks give block-time interpolation and the reorg anchor.
  */
-export async function processRange(d: RunnerDeps, st: RunnerState, from: bigint, to: bigint, startBlock: bigint): Promise<ApplyCounts> {
+export async function processRange(
+  d: RunnerDeps,
+  st: RunnerState,
+  from: bigint,
+  to: bigint,
+  startBlock: bigint,
+  opts: { advanceCursor?: boolean } = {},
+): Promise<ApplyCounts> {
+  // The history walk ingests ranges BEHIND the live cursor. It must write the same
+  // rows without touching that cursor, or the tail would be dragged backwards into
+  // re-reading everything it already has.
+  const advanceLive = opts.advanceCursor ?? true;
   const { cfg, client, db } = d;
   let counts = zeroCounts();
   const headerCache = new Map<bigint, { hash: Hex; parentHash: Hex; timestamp: bigint }>();
@@ -101,12 +112,12 @@ export async function processRange(d: RunnerDeps, st: RunnerState, from: bigint,
   // pass 2: pools (address list = everything known after pass 1)
   const pools = [...st.pools] as Address[];
   if (pools.length > 0) {
-    await streamChunks(client, from, to, cfg.chunkSize, cfg.concurrency, () => ({ addresses: pools, topics: POOL_TOPICS }), (c) => applyChunk(c, true));
+    await streamChunks(client, from, to, cfg.chunkSize, cfg.concurrency, () => ({ addresses: pools, topics: POOL_TOPICS }), (c) => applyChunk(c, advanceLive));
   } else {
     // nothing to scan for pools yet, still advance the cursor
     const ht = await hdr(to);
     const hf = await hdr(from);
-    await applyPlan(db, { markets: [], references: [], resolved: [], finalized: [], epochsOpened: [], epochsClosed: [], orders: [], orderUpdates: [], fills: [], builderFees: [], protocolFees: [], redemptions: [], raw: [], blockHashes: new Map(), unknownPoolLogs: 0 }, { network: cfg.network, from, to, toHash: ht.hash, toParentHash: ht.parentHash, toTs: ht.timestamp, fromTs: hf.timestamp, advanceCursor: true, startBlock });
+    await applyPlan(db, { markets: [], references: [], resolved: [], finalized: [], epochsOpened: [], epochsClosed: [], orders: [], orderUpdates: [], fills: [], builderFees: [], protocolFees: [], redemptions: [], raw: [], blockHashes: new Map(), unknownPoolLogs: 0 }, { network: cfg.network, from, to, toHash: ht.hash, toParentHash: ht.parentHash, toTs: ht.timestamp, fromTs: hf.timestamp, advanceCursor: advanceLive, startBlock });
   }
   return counts;
 }

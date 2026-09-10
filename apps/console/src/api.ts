@@ -53,6 +53,9 @@ export interface Overview {
   cursorBlock: number | null;
   headBlock: number;
   lagBlocks: number | null;
+  /** Hours of the claimed 24 h that are actually indexed. */
+  historyCoveredHours: number;
+  historyComplete: boolean;
   computedAt: string;
 }
 
