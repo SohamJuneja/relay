@@ -14,10 +14,14 @@
 // Without TELEGRAM_BOT_TOKEN this does nothing at all and says so once. That is the
 // normal state for a deployment that has not been given a bot.
 
+import type { BotStatus } from "@relay/api/deps";
+
 export interface BotHandle {
   stop(): Promise<void>;
   /** Whether long polling is currently supervised. False when there is no token. */
   running(): boolean;
+  /** For /health — see BotStatus. */
+  status(): BotStatus;
 }
 
 export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
@@ -26,12 +30,19 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
 
   if (!token) {
     log("no TELEGRAM_BOT_TOKEN — not starting");
-    return { stop: async () => undefined, running: () => false };
+    return {
+      stop: async () => undefined,
+      running: () => false,
+      status: () => ({ enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: "TELEGRAM_BOT_TOKEN is not set", restarts: 0 }),
+    };
   }
 
   let stopped = false;
   let stopFn: (() => Promise<void>) | null = null;
   let isRunning = () => false;
+  let lastUpdateAt: number | null = null;
+  let startupError: string | null = null;
+  let pollingState: (() => { running: boolean; lastPollAt: number | null; lastError: string | null; restarts: number }) | null = null;
 
   // Imported lazily so a deployment without a bot never loads grammY at all — on a
   // 512 MB box, a dependency you do not use is memory you do not have.
@@ -85,6 +96,13 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
       const kb = keyboard(copy.marketButton);
       await ctx.reply(text, { parse_mode: "HTML", ...(kb ? { reply_markup: kb } : {}) });
     });
+    // Every update, before any handler. This is the field that proves messages are
+    // actually arriving, as opposed to the poller merely believing it holds the slot.
+    bot.use(async (_ctx, next) => {
+      lastUpdateAt = Date.now();
+      await next();
+    });
+
     bot.catch((e) => log("handler error:", e.message));
 
     // The scheduler, aligned to the venue's window boundaries.
@@ -127,11 +145,28 @@ export function startBot(opts: { log: (...a: unknown[]) => void }): BotHandle {
     const polling = runPolling(bot, { log });
     stopFn = async () => polling.stop();
     isRunning = () => polling.running();
+    pollingState = () => polling.state();
     await polling.ready;
-  })().catch((e) => log(`failed to start: ${(e as Error).message}`));
+  })().catch((e) => {
+    startupError = (e as Error).message;
+    log(`failed to start: ${startupError}`);
+  });
 
   return {
     running: () => isRunning(),
+    status: () => {
+      const p = pollingState?.() ?? null;
+      return {
+        enabled: true,
+        running: p?.running ?? false,
+        lastPollAt: p?.lastPollAt ? new Date(p.lastPollAt).toISOString() : null,
+        lastUpdateAt: lastUpdateAt ? new Date(lastUpdateAt).toISOString() : null,
+        // A startup failure outranks a polling error: if the import or the token check
+        // never got as far as polling, that is the thing to report.
+        lastError: startupError ?? p?.lastError ?? null,
+        restarts: p?.restarts ?? 0,
+      };
+    },
     async stop() {
       stopped = true;
       await stopFn?.().catch(() => undefined);

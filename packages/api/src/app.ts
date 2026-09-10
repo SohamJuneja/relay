@@ -18,11 +18,17 @@ import { registerPartners } from "./routes/partners.js";
 import { registerStats } from "./routes/stats.js";
 import { registerWallets } from "./routes/wallets.js";
 import { registerStream } from "./ws.js";
+import { assertEmbedScriptUrlConfigured } from "./snippet.js";
 
 /** Fastify instance with the zod type provider, so route handlers infer params/query/body. */
 export type App = FastifyInstance<RawServerDefault, RawRequestDefaultExpression, RawReplyDefaultExpression, FastifyBaseLogger, ZodTypeProvider>;
 
 export async function buildApp(deps: ApiDeps, opts: { logger?: boolean } = {}): Promise<App> {
+  // Before anything is served. A snippet is the one artefact a partner copies once and
+  // pastes on a site we never see again; handing out a dead URL is not recoverable by
+  // fixing the server later.
+  assertEmbedScriptUrlConfigured();
+
   const app = Fastify({ logger: opts.logger ?? false, trustProxy: true }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);

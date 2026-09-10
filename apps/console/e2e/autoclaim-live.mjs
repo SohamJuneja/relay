@@ -59,11 +59,22 @@ log(`  burner ${report.burner}`);
 
 for (let attempt = 1; attempt <= ATTEMPTS && !report.won; attempt++) {
   log(`attempt ${attempt}`);
-  // Back to the trade panel if a previous receipt is showing.
-  await w.getByRole("button", { name: /Trade again|Back/i }).first().click().catch(() => undefined);
-  await page.waitForTimeout(1500);
+  // Back to the trade panel if a previous receipt is showing. The button is labelled
+  // "Trade the next window", and a wrong selector here silently leaves the run stuck
+  // on the receipt until the side locator times out.
+  const back = w.getByRole("button", { name: /Trade the next window/i }).first();
+  if (await back.isVisible().catch(() => false)) {
+    await back.click();
+    await page.waitForTimeout(2000);
+  }
+  // A 5m window may be between rounds; wait for a tradeable one rather than failing.
+  const sides = w.locator(".side:not([disabled])").first();
+  const ready = await sides.waitFor({ state: "visible", timeout: 200_000 }).then(() => true).catch(() => false);
+  if (!ready) {
+    log("  no tradeable side within 200s, moving to the next attempt");
+    continue;
+  }
 
-  await w.locator(".side:not([disabled])").first().waitFor({ state: "visible", timeout: 180_000 });
   const priced = await w.locator(".side").evaluateAll((els) =>
     els.map((e, i) => ({ i, disabled: e.hasAttribute("disabled"), pct: Number((e.querySelector(".prob")?.textContent ?? "").replace("%", "")) })),
   );

@@ -316,7 +316,10 @@ function PartnerView(props: { session: Session; onSignOut: () => void }) {
           ) : fills.error ? (
             <ErrorState error={fills.error} what="your fills" retry={() => void fills.refetch()} />
           ) : rows.length === 0 ? (
-            <Empty>No fills yet. The first one will appear here the moment it lands on chain.</Empty>
+            <Empty>
+              No fills yet. The first one will appear here the moment it lands on chain.{" "}
+              <Link to="/try">Try your snippet</Link> to place one without building a page for it.
+            </Empty>
           ) : (
             <div className="tablewrap">
               <table>

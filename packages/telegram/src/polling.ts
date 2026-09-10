@@ -39,6 +39,14 @@ export interface PollingOptions {
   now?: () => number;
 }
 
+export interface PollingState {
+  running: boolean;
+  /** When the current run took the polling slot. */
+  lastPollAt: number | null;
+  lastError: string | null;
+  restarts: number;
+}
+
 export interface PollingHandle {
   /** Resolves once the token is proven and polling has been launched. Rejects only if the token is unusable. */
   readonly ready: Promise<void>;
@@ -46,6 +54,8 @@ export interface PollingHandle {
   running(): boolean;
   /** How many times polling has been restarted after coming back unexpectedly. */
   restarts(): number;
+  /** Everything /health needs, in one read. */
+  state(): PollingState;
   stop(): Promise<void>;
 }
 
@@ -68,6 +78,8 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
   let stopped = false;
   let launched = false;
   let restarts = 0;
+  let lastPollAt: number | null = null;
+  let lastError: string | null = null;
   // Assigned synchronously by the Promise executor, which TypeScript cannot see.
   let resolveReady!: () => void;
   let rejectReady!: (e: unknown) => void;
@@ -82,6 +94,7 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
     try {
       await bot.init();
     } catch (e) {
+      lastError = message(e);
       rejectReady(e);
       log(`token check failed: ${message(e)}`);
       return;
@@ -100,7 +113,12 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
       try {
         // Deliberately not awaited as a startup step — this is the whole run.
         await bot.start({
-          onStart: (me) => log(`listening as @${me.username}`),
+          onStart: (me) => {
+            // The slot is ours from here — the one fact /health could not otherwise know.
+            lastPollAt = now();
+            lastError = null;
+            log(`listening as @${me.username}`);
+          },
           drop_pending_updates: dropPendingUpdates,
         });
         // A clean return means polling ended. That is expected only after stop().
@@ -108,6 +126,7 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
         log("polling ended on its own — restarting");
       } catch (e) {
         if (stopped) return;
+        lastError = message(e);
         if (isFatalAuth(e)) {
           log(`polling stopped: ${message(e)} — the token is not valid, not retrying`);
           return;
@@ -133,6 +152,7 @@ export function runPolling(bot: PollingBot, opts: PollingOptions): PollingHandle
     ready,
     running: () => launched && !stopped,
     restarts: () => restarts,
+    state: () => ({ running: launched && !stopped, lastPollAt, lastError, restarts }),
     async stop() {
       if (stopped) return;
       stopped = true;

@@ -6,12 +6,19 @@ wallet, or knowing what a pool is. Every order carries the partner's builder cod
 and a Relay attribution tag, so the partner gets credit for the flow.
 
 ```html
-<script src="https://cdn.example.com/relay.iife.js"></script>
+<script src="https://relay-cdn-sohamjunejas-projects.vercel.app/relay.iife.js"></script>
 <div data-relay-market data-partner="1" data-builder="0xYourBuilderAddress"></div>
 ```
 
 That is the whole integration. The widget renders into its own Shadow DOM, so the
 host page's CSS cannot reach in and the widget's cannot leak out.
+
+That script URL is **this deployment's** CDN. Registering gives you the same two lines
+with your own partner id and builder address filled in — copy them from the console
+rather than editing these by hand, and the URL will always be the one your API is
+configured for. To see it working before you paste it anywhere, the console has a
+[**Try your snippet**](https://relay-console-sohamjunejas-projects.vercel.app/try)
+page.
 
 ## Attributes
 

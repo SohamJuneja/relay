@@ -28,6 +28,15 @@ export function registerHealth(app: App, deps: ApiDeps): void {
             /** Hours of history actually covered between the two cursors. */
             historyCoveredHours: z.number(),
             historyComplete: z.boolean(),
+            /** The Telegram bot, so "is it polling" needs no log access. */
+            bot: z.object({
+              enabled: z.boolean(),
+              running: z.boolean(),
+              lastPollAt: z.string().nullable(),
+              lastUpdateAt: z.string().nullable(),
+              lastError: z.string().nullable(),
+              restarts: z.number(),
+            }),
             dbOk: z.boolean(),
             cursorUpdatedAt: z.string().nullable(),
             ts: z.number(),
@@ -73,6 +82,8 @@ export function registerHealth(app: App, deps: ApiDeps): void {
         historyTarget: hist ? Number(hist.startBlock) : null,
         historyCoveredHours: Math.round(coveredHours(hist?.lastBlock ?? null, cur?.lastBlock ?? null) * 10) / 10,
         historyComplete: hist !== null && hist.lastBlock <= hist.startBlock,
+        // Undefined in the standalone API, which says so rather than guessing.
+        bot: deps.botStatus?.() ?? { enabled: false, running: false, lastPollAt: null, lastUpdateAt: null, lastError: null, restarts: 0 },
         dbOk,
         cursorUpdatedAt: cur?.updatedAt?.toISOString() ?? null,
         ts: Math.floor(Date.now() / 1000),

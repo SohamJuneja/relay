@@ -1,9 +1,9 @@
 # Relay
 
-**A distribution layer for DreamDEX Event Contracts on Somnia.** DreamDEX opens a
-prediction market every minute — "will BTC be above where this window opened when it
-closes?" — and a third of them expire with liquidity quoted on both sides and nobody
-taking it. That is not a liquidity problem; it is a distribution problem. Relay is two
+**A distribution layer for DreamDEX Event Contracts on Somnia.** The DreamDEX venue
+runs prediction markets in rolling 5-minute, 15-minute, 1-hour, 4-hour and 1-day
+windows — "will BTC be above where this window opened when it closes?" — and a third of
+them expire with liquidity quoted on both sides and nobody taking it. That is not a liquidity problem; it is a distribution problem. Relay is two
 lines of markup that put a working market card inside somebody else's page, a Telegram
 mini-app that does the same inside a chat, and an indexer that reads Somnia's logs
 directly so the publisher who sent an order can be credited for it — on chain, in the
@@ -117,7 +117,7 @@ pnpm api:dev                               # :8787 — /docs for the OpenAPI pag
 ```
 
 Then `pnpm console:dev` (:5179), `pnpm demo:dev` (:5180), `pnpm embed:dev` (:5178) or
-`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 142 tests.
+`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 190 tests.
 
 ## What is in here
 

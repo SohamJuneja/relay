@@ -6,7 +6,7 @@ import type { App } from "../app.js";
 import type { ApiDeps } from "../deps.js";
 import { fillToApi, rowsOf } from "../format.js";
 import { AddressZ, NamedFill, PartnerStats } from "../schemas.js";
-import { embedSnippet } from "../snippet.js";
+import { embedScriptUrl, embedSnippet } from "../snippet.js";
 import { PROOF_WINDOW_MINUTES, proofMessage, verifyProof } from "../proof.js";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -109,7 +109,7 @@ export function registerPartners(app: App, deps: ApiDeps): void {
         snippet: embedSnippet({
           partnerId: row!.partnerId,
           builderAddress: checksummed,
-          ...(process.env.EMBED_SCRIPT_URL ? { scriptUrl: process.env.EMBED_SCRIPT_URL } : {}),
+          scriptUrl: embedScriptUrl(),
           ...(process.env.PUBLIC_API_URL ? { api: process.env.PUBLIC_API_URL } : {}),
         }),
         userDataHint: { partnerId: row!.partnerId, example, note: "userData = [8b version=1][32b partnerId][16b surfaceId][8b reserved]; example is surface WEB" },

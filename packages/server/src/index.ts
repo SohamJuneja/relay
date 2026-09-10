@@ -93,6 +93,11 @@ async function main(): Promise<void> {
   await deps.migrate();
   log(`migrations applied in ${Date.now() - t0} ms`);
 
+  // The bot starts after the app is built, so /health reads it through a holder
+  // rather than a value captured before it exists.
+  let botHandle: ReturnType<typeof startBot> | null = null;
+  deps.botStatus = () => botHandle?.status() ?? null;
+
   const app = await buildApp(deps, { logger: process.env.LOG_REQUESTS === "true" });
 
   // The port comes up first. Render's health check has a deadline, and an instance
@@ -103,6 +108,7 @@ async function main(): Promise<void> {
 
   const indexer = startIndexer({ db: deps.db, client: deps.client, log });
   const bot = startBot({ log });
+  botHandle = bot;
 
   let stopping = false;
   const stop = async (signal: string) => {

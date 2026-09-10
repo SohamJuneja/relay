@@ -37,6 +37,8 @@ const BuilderRow = z.object({
   firstSeen: z.number(),
   lastSeen: z.number(),
   partnerName: z.string().nullable(),
+  /** How many registered partners claim this builder address. >1 means the name is one of several. */
+  partnerCount: z.number(),
   partnerId: z.number().nullable(),
   verified: z.boolean(),
 });
@@ -256,9 +258,16 @@ export function registerInsights(app: App, deps: ApiDeps): void {
                count(distinct f.taker_owner)::int as wallets,
                min(f.block_ts)::bigint as first_seen,
                max(f.block_ts)::bigint as last_seen,
-               max(p.name) as partner_name,
-               max(p.partner_id)::int as partner_id,
-               bool_or(coalesce(p.verified, false)) as verified
+               -- One builder address can belong to more than one partner: registration
+               -- is open, and an operator may register the same address twice. Picking
+               -- max(name) was deterministic and meaningless — it showed an agent's
+               -- flow under an unrelated partner that happened to sort later. Prefer
+               -- the partner that PROVED control of the address, then the most recent
+               -- claim, and say how many others there are rather than hiding them.
+               (array_agg(p.name order by p.verified desc nulls last, p.partner_id desc))[1] as partner_name,
+               (array_agg(p.partner_id order by p.verified desc nulls last, p.partner_id desc))[1]::int as partner_id,
+               bool_or(coalesce(p.verified, false)) as verified,
+               count(distinct p.partner_id)::int as partner_count
         from fills f
         join markets m on m.market_id = f.market_id
         left join partners p on lower(p.builder_address) = lower(f.taker_builder)
@@ -277,6 +286,7 @@ export function registerInsights(app: App, deps: ApiDeps): void {
           firstSeen: num(r.first_seen),
           lastSeen: num(r.last_seen),
           partnerName: r.partner_name === null || r.partner_name === undefined ? null : String(r.partner_name),
+          partnerCount: num(r.partner_count),
           partnerId: r.partner_id === null || r.partner_id === undefined ? null : num(r.partner_id),
           verified: r.verified === true,
         })),

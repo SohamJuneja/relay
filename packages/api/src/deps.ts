@@ -70,6 +70,25 @@ export class BookCache {
   }
 }
 
+/**
+ * What the Telegram bot is doing, for /health.
+ *
+ * A bot that is not polling looks identical from outside to one with nothing to say,
+ * and the only way to tell them apart was Render's log viewer. These six fields answer
+ * it: `running` false means it never took the polling slot, a `lastPollAt` that stops
+ * moving means it lost it, and `lastError` says why.
+ */
+export interface BotStatus {
+  enabled: boolean;
+  running: boolean;
+  /** Last time the poller confirmed it held the slot. */
+  lastPollAt: string | null;
+  /** Last update actually received — the proof that messages are arriving. */
+  lastUpdateAt: string | null;
+  lastError: string | null;
+  restarts: number;
+}
+
 export interface ApiDeps {
   cfg: IndexerConfig;
   db: Db;
@@ -78,6 +97,11 @@ export interface ApiDeps {
   books: BookCache;
   /** ERC-6909 outcome-token singleton (read once from any pool). */
   outcomeToken(): Promise<Address>;
+  /**
+   * The bot's live state, when this process runs one. Undefined in the standalone API,
+   * which reports enabled:false rather than pretending to know.
+   */
+  botStatus?: (() => BotStatus | null) | undefined;
   /** Apply checked-in migrations. The single-process server calls this at startup. */
   migrate(): Promise<void>;
   close(): Promise<void>;

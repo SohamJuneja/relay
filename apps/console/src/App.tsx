@@ -7,6 +7,7 @@ import { Register } from "./routes/Register";
 import { Dashboard } from "./routes/Dashboard";
 import { Ecosystem } from "./routes/Ecosystem";
 import { DocsEmbed } from "./routes/DocsEmbed";
+import { Try } from "./routes/Try";
 
 export function App() {
   const [theme, setTheme] = useTheme();
@@ -30,6 +31,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/try" element={<Try />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/ecosystem" element={<Ecosystem />} />
         <Route path="/docs/embed" element={<DocsEmbed />} />

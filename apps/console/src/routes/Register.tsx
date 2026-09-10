@@ -6,7 +6,7 @@
 // first thing a new partner sees is their product working.
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate  } from "react-router-dom";
 import { getAddress, isAddress } from "viem";
 import { api, type RegisterResult } from "../api";
 import { saveSession } from "../session";
@@ -103,6 +103,9 @@ export function Register() {
   }
 
   if (result) {
+    // Built here, from this build's own VITE_CDN_URL, so the copy button and the
+    // rendered block cannot disagree.
+    const snippet = embedSnippet(result.partnerId, result.builderAddress);
     return (
       <main>
         <div className="stack">
@@ -147,18 +150,28 @@ export function Register() {
           <div className="card">
             <header>
               <h2>Your snippet</h2>
-              <CopyButton text={result.snippet} label="Copy snippet" />
+              {/* The SAME string the <pre> below renders. It used to copy the API's
+                  snippet while displaying the console's, so what you saw on screen was
+                  right and what landed on your clipboard pointed at a CDN that does
+                  not resolve. One expression, used twice. */}
+              <CopyButton text={snippet} label="Copy snippet" />
             </header>
             {/* The API returns a snippet built from ITS idea of where the bundle is
                 served. This console knows its own CDN, and that is the URL a partner
                 should paste, so the page prefers it and falls back to the API's. */}
             <pre className="snippet" data-testid="snippet">
-              {embedSnippet(result.partnerId, result.builderAddress) || result.snippet}
+              {snippet}
             </pre>
             <p className="hint" style={{ marginTop: 10 }}>
               Paste it anywhere on your page. Add <code className="inline">data-asset</code>,{" "}
               <code className="inline">data-interval</code> or <code className="inline">data-surface</code> to change
               which market it shows and how the flow is labelled.
+            </p>
+            <p className="hint" style={{ marginTop: 6 }}>
+              Want to see it work first? <Link to="/try">Try your snippet</Link> — the widget mounts with your id and
+              builder against the live venue, so you can watch a trade reach your dashboard before touching your own
+              site. (A page opened from <code className="inline">file://</code> cannot reach the API; serve it over
+              http.)
             </p>
           </div>
 

@@ -4,7 +4,7 @@
 // fill it brings in.
 
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SCRIPT_URL, embedSnippet } from "./snippet.js";
+import { assertEmbedScriptUrlConfigured, DEFAULT_SCRIPT_URL, embedScriptUrl, embedSnippet } from "./snippet.js";
 
 const BUILDER = "0xb5eCf004491aa8589a82af91633D18867fcFF038";
 
@@ -53,5 +53,47 @@ describe("embedSnippet", () => {
     const s = embedSnippet({ partnerId: 1, builderAddress: BUILDER, scriptUrl: "https://cdn.example.org/relay.iife.js" });
     expect(s).toContain('<script src="https://cdn.example.org/relay.iife.js"></script>');
     expect(s).not.toContain(DEFAULT_SCRIPT_URL);
+  });
+});
+
+describe("embedScriptUrl", () => {
+  it("builds from CDN_URL, the same value the console gets", () => {
+    expect(embedScriptUrl({ CDN_URL: "https://cdn.example-real.test" } as NodeJS.ProcessEnv)).toBe("https://cdn.example-real.test/relay.iife.js");
+  });
+
+  it("tolerates a trailing slash rather than doubling it", () => {
+    expect(embedScriptUrl({ CDN_URL: "https://cdn.relay.test/" } as NodeJS.ProcessEnv)).toBe("https://cdn.relay.test/relay.iife.js");
+  });
+
+  it("lets EMBED_SCRIPT_URL override the conventional path", () => {
+    expect(embedScriptUrl({ CDN_URL: "https://cdn.relay.test", EMBED_SCRIPT_URL: "https://x.test/v2/relay.js" } as NodeJS.ProcessEnv)).toBe("https://x.test/v2/relay.js");
+  });
+
+  it("falls back to the placeholder when nothing is set", () => {
+    expect(embedScriptUrl({} as NodeJS.ProcessEnv)).toBe(DEFAULT_SCRIPT_URL);
+  });
+});
+
+describe("assertEmbedScriptUrlConfigured", () => {
+  it("refuses a production start with no CDN_URL", () => {
+    expect(() => assertEmbedScriptUrlConfigured({ NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(/CDN_URL is not configured/);
+  });
+
+  it("refuses a production start pointing at an example hostname", () => {
+    // This is the exact value that shipped: it resolves to nothing, and every partner
+    // who copied it got ERR_NAME_NOT_RESOLVED on their own site.
+    expect(() => assertEmbedScriptUrlConfigured({ NODE_ENV: "production", CDN_URL: "https://cdn.relay.example" } as NodeJS.ProcessEnv)).toThrow(/does not resolve|not configured/);
+    expect(() => assertEmbedScriptUrlConfigured({ NODE_ENV: "production", EMBED_SCRIPT_URL: "https://cdn.example.com/relay.iife.js" } as NodeJS.ProcessEnv)).toThrow();
+  });
+
+  it("accepts a real origin", () => {
+    expect(() =>
+      assertEmbedScriptUrlConfigured({ NODE_ENV: "production", CDN_URL: "https://relay-cdn-sohamjunejas-projects.vercel.app" } as NodeJS.ProcessEnv),
+    ).not.toThrow();
+  });
+
+  it("stays out of the way in development, where a placeholder is fine", () => {
+    expect(() => assertEmbedScriptUrlConfigured({} as NodeJS.ProcessEnv)).not.toThrow();
+    expect(() => assertEmbedScriptUrlConfigured({ NODE_ENV: "test" } as NodeJS.ProcessEnv)).not.toThrow();
   });
 });

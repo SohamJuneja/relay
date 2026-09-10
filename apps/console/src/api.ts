@@ -60,6 +60,8 @@ export interface Overview {
 }
 
 export interface BuilderRow {
+  /** How many registered partners claim this builder address. */
+  partnerCount?: number;
   builder: string;
   fills: number;
   notional: number;

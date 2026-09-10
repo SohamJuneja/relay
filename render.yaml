@@ -114,6 +114,14 @@ services:
       - key: OTHER_VENUE_RETENTION_DAYS
         value: "1"
 
+      # Where relay.iife.js is served from. Every snippet this API hands a partner
+      # carries it, and a partner pastes that snippet once onto a site nobody here
+      # will ever look at again — so an unset value is not a cosmetic problem, it is
+      # a script tag that fails to resolve on someone else's page. The server refuses
+      # to start in production without it. Must match the console's VITE_CDN_URL.
+      - key: CDN_URL
+        sync: false
+
       # ── API ──
       - key: API_RATE_LIMIT_PER_MIN
         value: "120"
