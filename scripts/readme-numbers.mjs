@@ -24,6 +24,22 @@ const pct = (n) => `${Number(n).toFixed(1)}%`;
 const usd = (n) => `$${Math.round(Number(n)).toLocaleString("en-US")}`;
 const int = (n) => Number(n).toLocaleString("en-US");
 
+/**
+ * Quoted-but-untaken as a share of the zero-fill windows, not of all windows.
+ *
+ * Both are reported against all windows, so when every untraded window turns out to
+ * have been quoted on both sides the two percentages coincide — and two identical
+ * numbers in adjacent rows read as a copy-paste error rather than as the finding.
+ * Expressed against zero-fill it says the thing plainly.
+ */
+const shareOfZeroFill = (s) => {
+  const zero = Number(s.zeroFillPct24h);
+  const untaken = Number(s.quotedButUntakenPct24h);
+  if (!Number.isFinite(zero) || !Number.isFinite(untaken) || zero <= 0) return "—";
+  const share = (untaken / zero) * 100;
+  return `${share >= 99.5 ? "100" : share.toFixed(0)}% of them (${pct(untaken)} of all windows)`;
+};
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const stampOf = (iso) => {
   const d = new Date(iso);
@@ -51,7 +67,7 @@ async function main() {
 | | |
 | --- | --- |
 | Windows that expired with **no trade at all** | **${pct(s.zeroFillPct24h)}** |
-| …of which liquidity was **quoted on both sides and refused** | **${pct(s.quotedButUntakenPct24h)}** |
+| …of those, the share that had liquidity **quoted on both sides and refused** | **${shareOfZeroFill(s)}** |
 | 24-hour notional on the venue | **${usd(s.notional24h)}** tUSDC across ${int(s.fills24h)} fills |`;
 
   const md = readFileSync(README, "utf8");

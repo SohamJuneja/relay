@@ -28,13 +28,13 @@ order itself, not in our database.
 
 ## The number this is built around
 
-From `GET /v1/stats/overview` on the DreamDEX venue, **10 September 2026, 08:18 UTC**:
+From `GET /v1/stats/overview` on the DreamDEX venue, **10 September 2026, 08:28 UTC**:
 
 | | |
 | --- | --- |
-| Windows that expired with **no trade at all** | **34.5%** |
-| …of which liquidity was **quoted on both sides and refused** | **34.5%** |
-| 24-hour notional on the venue | **$60,669** tUSDC across 17,244 fills |
+| Windows that expired with **no trade at all** | **34.4%** |
+| …of those, the share that had liquidity **quoted on both sides and refused** | **100% of them (34.4% of all windows)** |
+| 24-hour notional on the venue | **$61,473** tUSDC across 17,331 fills |
 
 A third of this venue's markets are tradeable and go untraded. Every number above is
 derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's.
