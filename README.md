@@ -104,6 +104,7 @@ by hand. Explorer:
 | 4 | A partner registered in the console, trading from its own preview, credited on its dashboard 4.6 s later | [`0x42aa45bd…292f0`](https://shannon-explorer.somnia.network/tx/0x42aa45bdce868d849bcd219994becaced525688fb9ef9fd0732d1b09f7e292f0) |
 | 5 | A trade from a third party's article, attributed to that publisher | [`0xed3b724f…b1dce`](https://shannon-explorer.somnia.network/tx/0xed3b724ff97bd7f56471cf18740b1a23e6fc36eedcb56ff34bae85b6068b1dce) |
 | 5 | A trade from the Telegram mini-app, attributed with `surface=telegram` | [`0xa394e98d…30a7`](https://shannon-explorer.somnia.network/tx/0xa394e98d2e1d07306e0f6f332acbe6ff98417f1d5f005df973e9bbf76e0e30a7) |
+| 6 | A $1 trade taken on the **deployed** stack — public article, public API, public console — filled and indexed in 22.9 s as `partner 3 · surface 1 (web)` | [`0x9f207809…a7505`](https://shannon-explorer.somnia.network/tx/0x9f207809491cfdce117913ed1be9968b733ae9674a2e378b840059553e5a7505) |
 
 ## Run it locally
 
@@ -116,7 +117,7 @@ pnpm api:dev                               # :8787 — /docs for the OpenAPI pag
 ```
 
 Then `pnpm console:dev` (:5179), `pnpm demo:dev` (:5180), `pnpm embed:dev` (:5178) or
-`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 118 tests.
+`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 142 tests.
 
 ## What is in here
 
