@@ -50,6 +50,26 @@ const stampOf = (iso) => {
 
 const FIGURES = /From `GET \/v1\/stats\/overview` on the DreamDEX venue, \*\*[^*]+\*\*:\n\n\| \| \|\n\| --- \| --- \|\n(?:\|[^\n]*\n){3}/;
 
+/** The same share, written out in prose, in the two places the README says it. */
+// Whitespace-tolerant, because the replacements re-wrap to the README's ~90 columns
+// and the next run has to match what the last one wrote.
+// Each matches a WHOLE sentence and is replaced with a whole, freshly wrapped one.
+// Splicing a few words into the middle of an existing paragraph leaves the untouched
+// remainder on its own short line, which looks like a mistake in the diff.
+const SHARE_PROSE =
+  /A(?:lmost a quarter|\s+(?:third|quarter|sixth|tenth|meaningful share))\s+of this venue's markets are tradeable and go untraded\.\s+Every number\s+above is\s+derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's\./;
+const INTRO_SHARE =
+  /and a(?:lmost a quarter|\s+(?:third|quarter|sixth|tenth|meaningful share))\s+of\s+them expire with liquidity quoted on both sides and nobody taking it\.\s+That is not a\s+liquidity problem; it is a distribution problem\.\s+Relay is two/;
+
+/** Words for a percentage, so the prose cannot disagree with the table beneath it. */
+const shareInWords = (pct) => {
+  if (pct >= 30) return "A third";
+  if (pct >= 21) return "Almost a quarter";
+  if (pct >= 15) return "A sixth";
+  if (pct >= 8) return "A tenth";
+  return "A meaningful share";
+};
+
 async function main() {
   const res = await fetch(`${API}/v1/stats/overview`, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${API}/v1/stats/overview returned ${res.status}`);
@@ -70,9 +90,30 @@ async function main() {
 | …of those, the share that had liquidity **quoted on both sides and refused** | **${shareOfZeroFill(s)}** |
 | 24-hour notional on the venue | **${usd(s.notional24h)}** tUSDC across ${int(s.fills24h)} fills |`;
 
-  const md = readFileSync(README, "utf8");
+  let md = readFileSync(README, "utf8");
   if (!FIGURES.test(md)) throw new Error("could not find the figures block in README.md");
-  writeFileSync(README, md.replace(FIGURES, `${block}\n`), "utf8");
+  md = md.replace(FIGURES, `${block}\n`);
+
+  // The prose has to move with the number, or it becomes a claim the table directly
+  // beneath it refutes: "A third of this venue's markets…" sat above a table reading
+  // 23.3%. A number written out in words next to the same number in a table is not a
+  // style choice, it is a second copy, and second copies drift.
+  const words = shareInWords(Number(s.zeroFillPct24h));
+  if (!SHARE_PROSE.test(md)) throw new Error("could not find the share sentence in README.md");
+  md = md.replace(
+    SHARE_PROSE,
+    `${words} of this venue's markets are tradeable and go untraded. Every number above is\n` +
+      `derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's.`,
+  );
+  if (!INTRO_SHARE.test(md)) throw new Error("could not find the intro share phrase in README.md");
+  md = md.replace(
+    INTRO_SHARE,
+    `and ${words.toLowerCase()} of\n` +
+      `them expire with liquidity quoted on both sides and nobody taking it. That is not a\n` +
+      `liquidity problem; it is a distribution problem. Relay is two`,
+  );
+
+  writeFileSync(README, md, "utf8");
 
   console.log(`README figures rewritten from ${API}`);
   console.log(`  as of              ${stamp}`);

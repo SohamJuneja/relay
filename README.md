@@ -2,8 +2,9 @@
 
 **A distribution layer for DreamDEX Event Contracts on Somnia.** The DreamDEX venue
 runs prediction markets in rolling 5-minute, 15-minute, 1-hour, 4-hour and 1-day
-windows — "will BTC be above where this window opened when it closes?" — and a third of
-them expire with liquidity quoted on both sides and nobody taking it. That is not a liquidity problem; it is a distribution problem. Relay is two
+windows — "will BTC be above where this window opened when it closes?" — and almost a quarter of
+them expire with liquidity quoted on both sides and nobody taking it. That is not a
+liquidity problem; it is a distribution problem. Relay is two
 lines of markup that put a working market card inside somebody else's page, a Telegram
 mini-app that does the same inside a chat, and an indexer that reads Somnia's logs
 directly so the publisher who sent an order can be credited for it — on chain, in the
@@ -28,15 +29,15 @@ order itself, not in our database.
 
 ## The number this is built around
 
-From `GET /v1/stats/overview` on the DreamDEX venue, **10 September 2026, 08:28 UTC**:
+From `GET /v1/stats/overview` on the DreamDEX venue, **11 September 2026, 09:48 UTC**:
 
 | | |
 | --- | --- |
-| Windows that expired with **no trade at all** | **34.4%** |
-| …of those, the share that had liquidity **quoted on both sides and refused** | **100% of them (34.4% of all windows)** |
-| 24-hour notional on the venue | **$61,473** tUSDC across 17,331 fills |
+| Windows that expired with **no trade at all** | **22.9%** |
+| …of those, the share that had liquidity **quoted on both sides and refused** | **100% of them (22.9% of all windows)** |
+| 24-hour notional on the venue | **$229,114** tUSDC across 25,528 fills |
 
-A third of this venue's markets are tradeable and go untraded. Every number above is
+Almost a quarter of this venue's markets are tradeable and go untraded. Every number above is
 derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's.
 
 ## Architecture
@@ -117,7 +118,7 @@ pnpm api:dev                               # :8787 — /docs for the OpenAPI pag
 ```
 
 Then `pnpm console:dev` (:5179), `pnpm demo:dev` (:5180), `pnpm embed:dev` (:5178) or
-`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 197 tests.
+`pnpm tg:miniapp` (:5181). `pnpm typecheck && pnpm -r test` runs 199 tests.
 
 ## What is in here
 
