@@ -12,7 +12,7 @@ order itself.**
 
 The DreamDEX venue runs prediction markets in rolling 5-minute, 15-minute, 1-hour,
 4-hour and 1-day windows: will BTC be above where this window opened when it closes?
-They are live, continuously priced by market makers, and almost a quarter of
+They are live, continuously priced by market makers, and a tenth of
 them expire with liquidity quoted on both sides and nobody taking it. That is not a
 liquidity problem; it is a distribution problem. Relay is two
 lines of markup that put a working market card inside somebody else's page, a Telegram
@@ -37,8 +37,8 @@ page's CSS cannot reach in and the widget's cannot leak out.
 2. **[Try your own snippet](https://relay-console-sohamjunejas-projects.vercel.app/try)**
    — put any partner id and address in, watch the card mount with them.
 3. **[Read an article with a market in it](https://relay-demo-sohamjunejas-projects.vercel.app/btc-window/)**
-   — tap *Trade in one click*. A testnet wallet is created in your browser and funded;
-   no extension, no bridging, no leaving the page.
+   — the market card is in the article. *Create a wallet in this browser*, take the
+   faucet, pick a side. No extension, no bridging, no leaving the page.
 4. **[Watch your trade land](https://relay-console-sohamjunejas-projects.vercel.app/ecosystem)**
    — the fill appears on the public leaderboard, credited to that publisher, within
    seconds.
@@ -60,15 +60,15 @@ Nothing above needs an account, a wallet, or a signature from you.
 
 ## The number this is built around
 
-From `GET /v1/stats/overview` on the DreamDEX venue, **11 September 2026, 10:54 UTC**:
+From `GET /v1/stats/overview` on the DreamDEX venue, **11 September 2026, 16:56 UTC**:
 
 | | |
 | --- | --- |
-| Windows that expired with **no trade at all** | **21.2%** |
-| …of those, the share that had liquidity **quoted on both sides and refused** | **100% of them (21.2% of all windows)** |
-| 24-hour notional on the venue | **$227,450** tUSDC across 25,168 fills |
+| Windows that expired with **no trade at all** | **12.2%** |
+| …of those, the share that had liquidity **quoted on both sides and refused** | **100% of them (12.2% of all windows)** |
+| 24-hour notional on the venue | **$205,332** tUSDC across 31,026 fills |
 
-Almost a quarter of this venue's markets are tradeable and go untraded. Every number above is
+A tenth of this venue's markets are tradeable and go untraded. Every number above is
 derived from Somnia logs by Relay's own indexer, which does not depend on DreamDEX's.
 
 That second row is the whole thesis. These are not illiquid markets nobody could trade.
