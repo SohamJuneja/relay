@@ -6,9 +6,12 @@
 // tables below, so a colour can only be changed in one place.
 //
 // Rules the palette encodes:
-//   · one accent per side — UP teal-green, DOWN warm red — on a neutral ground.
-//     Nothing else in either product is coloured, so those two are the only things
-//     competing for attention.
+//   · the ground is COOL — a blue-grey archival paper in light, a blue-black in
+//     dark. Deliberately not the warm cream of apps/demo-site: that is a third-party
+//     publication and this is Relay's own product, and they should not be mistaken
+//     for one another at a glance.
+//   · one accent per side — UP green, DOWN red — and one brand accent, cobalt,
+//     which is never used for a direction. Three colours, three jobs, no overlap.
 //   · neutrals carry every disabled and inert state. A disabled UP button is grey,
 //     not pale green: colour means "this will act, and in this direction".
 //   · light and dark are the same names with different values, never different names.
@@ -18,56 +21,62 @@ export type ThemeName = "light" | "dark";
 /** Colour tokens. Every value is a literal; nothing here references anything else. */
 export const COLORS: Record<ThemeName, Record<string, string>> = {
   light: {
-    bg: "#ffffff",
-    "bg-sunken": "#f4f5f7",
+    bg: "#f7f8fa",
+    "bg-sunken": "#edeff3",
     "bg-raised": "#ffffff",
-    line: "#e3e6ea",
-    "line-strong": "#cdd3da",
-    ink: "#0b0d10",
-    "ink-2": "#4a5158",
-    "ink-3": "#767f88",
-    up: "#067a55",
-    "up-bg": "#e6f5ef",
-    "up-ink": "#05563c",
-    down: "#c8291f",
-    "down-bg": "#fdeceb",
-    "down-ink": "#8f1d16",
-    "neutral-300": "#d5dae0",
-    "neutral-700": "#3a424b",
-    "btn-off": "#d5dae0",
-    amber: "#b26a00",
-    focus: "#1c64f2",
-    shadow: "0 1px 2px rgba(11,13,16,.06), 0 8px 24px rgba(11,13,16,.08)",
+    line: "#dfe3ea",
+    "line-strong": "#c3cad6",
+    ink: "#0b0f16",
+    "ink-2": "#47505f",
+    "ink-3": "#6b7480",
+    up: "#0a7c5a",
+    "up-bg": "#e2f3ec",
+    "up-ink": "#05543c",
+    down: "#c62a22",
+    "down-bg": "#fceae8",
+    "down-ink": "#8c1c16",
+    "neutral-300": "#cfd5de",
+    "neutral-700": "#39414e",
+    "btn-off": "#cfd5de",
+    amber: "#a4680a",
+    accent: "#1b4dff",
+    "accent-bg": "#e8edff",
+    "accent-ink": "#ffffff",
+    focus: "#1b4dff",
+    shadow: "0 1px 2px rgba(11,15,22,.05), 0 12px 32px rgba(11,15,22,.07)",
   },
   dark: {
-    bg: "#101317",
-    "bg-sunken": "#171b21",
-    "bg-raised": "#1b2027",
-    line: "#262c35",
-    "line-strong": "#333b46",
-    ink: "#f2f5f8",
-    "ink-2": "#b3bdc7",
-    "ink-3": "#7d8894",
-    up: "#35d69a",
-    "up-bg": "#10281f",
-    "up-ink": "#7ff0c2",
-    down: "#ff6b60",
-    "down-bg": "#2b1512",
-    "down-ink": "#ffb0a8",
-    "neutral-300": "#d5dae0",
-    "neutral-700": "#3a424b",
-    "btn-off": "#3a424b",
+    bg: "#0a0d13",
+    "bg-sunken": "#0e1219",
+    "bg-raised": "#141922",
+    line: "#222935",
+    "line-strong": "#323b4a",
+    ink: "#e9edf4",
+    "ink-2": "#a9b3c2",
+    "ink-3": "#7a8695",
+    up: "#2fd39b",
+    "up-bg": "#0b2a20",
+    "up-ink": "#7df0c3",
+    down: "#ff6e62",
+    "down-bg": "#2c1513",
+    "down-ink": "#ffb2aa",
+    "neutral-300": "#cfd5de",
+    "neutral-700": "#39414e",
+    "btn-off": "#39414e",
     amber: "#e0a33a",
-    focus: "#6ea8fe",
-    shadow: "0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.45)",
+    accent: "#7c9bff",
+    "accent-bg": "#141f3d",
+    "accent-ink": "#0a0d13",
+    focus: "#7c9bff",
+    shadow: "0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.55)",
   },
 };
 
 /** 4-pt spacing scale. s1 … s6 = 4 … 24. */
 export const SPACE = { s1: "4px", s2: "8px", s3: "12px", s4: "16px", s5: "20px", s6: "24px" } as const;
 
-/** Three radii, nothing between them. */
-export const RADII = { "r-sm": "8px", "r-md": "12px", "r-lg": "16px" } as const;
+/** Three radii, nothing between them. Tight on purpose: this is an instrument, not a card game. */
+export const RADII = { "r-sm": "4px", "r-md": "6px", "r-lg": "10px" } as const;
 
 /**
  * A typeface PAIRING, not a font: a rounded display face for the big numbers, a

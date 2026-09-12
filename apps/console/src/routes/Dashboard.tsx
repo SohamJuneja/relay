@@ -247,7 +247,7 @@ function PartnerView(props: { session: Session; onSignOut: () => void }) {
 
         {!stats.isPending && !hasData ? <FirstFill partnerId={partnerId} builder={stats.data?.builderAddress ?? "0x…"} /> : null}
 
-        <div className="split" style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 1fr)" }}>
+        <div className="split dash">
           <div className="card">
             <header>
               <h2>Routed notional per {(breakdown.data?.bucketSec ?? 3600) >= 86400 ? "day" : "hour"}</h2>

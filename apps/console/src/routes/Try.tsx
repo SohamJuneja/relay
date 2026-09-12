@@ -44,7 +44,7 @@ export function Try() {
             <span className="muted" style={{ fontSize: 11.5 }}>from the register page</span>
           </header>
 
-          <div className="split" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)", gap: "var(--s3)" }}>
+          <div className="split fields">
             <label className="field">
               <span>Partner id</span>
               <input value={partner} onChange={(e) => setPartner(e.target.value)} inputMode="numeric" placeholder="8" />
@@ -72,7 +72,7 @@ export function Try() {
         </div>
 
         {ready ? (
-          <div className="split" style={{ gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 1fr)" }}>
+          <div className="split snippet">
             <div className="card">
               <header>
                 <h2>Your snippet</h2>

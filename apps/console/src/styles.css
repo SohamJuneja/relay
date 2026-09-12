@@ -1,12 +1,38 @@
-/* The console's layout. Every colour, space and typeface comes from
-   @relay/ui-tokens — the same module the widget's shadow-root stylesheet reads —
-   so the two products are one family rather than two that happen to look alike.
-
-   The page is data-dense but calm: one accent per direction (UP green, DOWN red),
-   everything else neutral, tabular figures everywhere so columns of numbers line
-   up and do not jitter as they update. */
+/* The console's visual language.
+ *
+ * Every colour, space and radius comes from @relay/ui-tokens — the same module the
+ * widget's shadow-root stylesheet reads — so the two are one family rather than two
+ * things that happen to share a palette.
+ *
+ * The idea the layout encodes: this is an instrument for reading a market, so it is
+ * built from RULES, not boxes. A hairline separates; a border appears only where
+ * something genuinely is a surface you could pick up. Three typefaces, three jobs:
+ *
+ *   · Instrument Serif  — the statements. Headlines, and the one number a page is
+ *     about. Relay's argument is that markets belong inside publications, so the
+ *     display face is an editorial one. That is the product thesis, set in type.
+ *   · Inter Tight       — the chrome. Labels, buttons, prose.
+ *   · JetBrains Mono    — every figure, address and hash, always tabular, so columns
+ *     of numbers line up and do not jitter as they update.
+ *
+ * Colour is rationed to three jobs: UP green, DOWN red, and one cobalt accent that
+ * is never used for a direction. Everything else is the cool grey ground.
+ */
 
 @import "@relay/ui-tokens/tokens.css";
+
+/* The token table ships system stacks as its default, because the widget mounts
+   inside other people's pages and must never drag a webfont in with it. The console
+   is our own document, so it fills in the real faces through the override hooks the
+   tokens already expose. */
+:root {
+  --relay-font-override-ui: "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --relay-font-override-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --relay-font-override-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+
+  /* One hairline, named once, used for every rule in the document. */
+  --rule: 1px solid var(--line);
+}
 
 *,
 *::before,
@@ -23,19 +49,30 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--relay-font-ui);
-  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
+}
+
+/* Tabular figures belong on the numbers, not on the prose — putting it on body
+   makes running text look like a spreadsheet. */
+.mono,
+table,
+.kpi dd,
+.figure {
+  font-variant-numeric: tabular-nums;
 }
 
 a {
   color: var(--ink);
   text-decoration: none;
   border-bottom: 1px solid var(--line-strong);
+  transition: border-color 0.12s ease, color 0.12s ease;
 }
 a:hover {
-  border-bottom-color: var(--ink-2);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 a.plain {
   border-bottom: 0;
@@ -45,24 +82,30 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-family: var(--relay-font-display);
-  letter-spacing: -0.02em;
-  font-weight: 700;
 }
 h1 {
-  font-size: 30px;
-  line-height: 1.15;
+  font-family: var(--relay-font-display);
+  font-weight: 400;
+  font-size: clamp(34px, 4.6vw, 50px);
+  line-height: 1.03;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 h2 {
-  font-size: 19px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 }
-h3 {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+/* The micro-label. Mono, spaced, quiet — it names a region without competing with
+   the number inside it. */
+h3,
+.label {
+  font-family: var(--relay-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--ink-3);
-  font-family: var(--relay-font-ui);
 }
 p {
   margin: 0;
@@ -97,45 +140,76 @@ p {
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding: var(--s3) var(--s5);
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(8px);
+  padding: 0 var(--s5);
+  height: 54px;
+  border-bottom: var(--rule);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.6) blur(12px);
 }
+
+/* The mark: one filled bar and one hollow, the two sides of a binary market. Drawn
+   in CSS so there is no asset to load and nothing to keep in sync. */
 .wordmark {
-  font-family: var(--relay-font-display);
-  font-weight: 800;
-  font-size: 17px;
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--relay-font-ui);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
   border: 0;
+  color: var(--ink);
+}
+.wordmark::before {
+  content: "";
+  width: 16px;
+  height: 10px;
+  flex: none;
+  background: linear-gradient(90deg, var(--accent) 0 7px, transparent 7px 9px, var(--ink-3) 9px 16px);
 }
 .wordmark span {
+  font-family: var(--relay-font-mono);
   color: var(--ink-3);
-  font-weight: 600;
-  font-size: 12px;
-  margin-left: var(--s2);
-  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 2px;
 }
+
 .nav {
   display: flex;
   gap: var(--s1);
   align-items: center;
 }
+/* Active state is an underline sitting on the bar's own rule, not a pill. Pills are
+   the most-copied component on the web; a rule reads as an instrument. */
 .nav a {
+  position: relative;
   border: 0;
-  padding: 6px 10px;
-  border-radius: var(--r-sm);
+  padding: 0 10px;
+  height: 53px;
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-3);
 }
 .nav a:hover {
   color: var(--ink);
-  background: var(--bg-sunken);
 }
 .nav a[aria-current="page"] {
   color: var(--ink);
-  background: var(--bg-sunken);
+  font-weight: 600;
+}
+.nav a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
 }
 .grow {
   flex: 1;
@@ -144,16 +218,16 @@ p {
 main {
   flex: 1;
   width: 100%;
-  max-width: 1180px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: var(--s6) var(--s5) 64px;
+  padding: var(--s6) var(--s5) 72px;
 }
 main.wide {
   max-width: 1320px;
 }
 
 footer.site {
-  border-top: 1px solid var(--line);
+  border-top: var(--rule);
   padding: var(--s4) var(--s5);
   color: var(--ink-3);
   font-size: 12px;
@@ -165,7 +239,7 @@ footer.site {
 /* ── blocks ─────────────────────────────────────────────────────────────── */
 .stack {
   display: grid;
-  gap: var(--s5);
+  gap: var(--s6);
 }
 .stack.tight {
   gap: var(--s3);
@@ -178,11 +252,14 @@ footer.site {
   flex-wrap: wrap;
 }
 
+/* A section, not a card: ruled off at the top, no ground of its own — so a page of
+   these reads as one continuous document instead of a tray of tiles. */
 .card {
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--bg-raised);
-  padding: var(--s4);
+  border: 0;
+  border-top: var(--rule);
+  border-radius: 0;
+  background: none;
+  padding: var(--s4) 0 0;
 }
 .card > header {
   display: flex;
@@ -192,47 +269,99 @@ footer.site {
   margin-bottom: var(--s3);
 }
 
-/* ── KPIs ───────────────────────────────────────────────────────────────── */
+/* The exception: something that genuinely is a surface — a form, a snippet, the
+   widget's own frame. These lift off the ground and keep their border. */
+.card.raised,
+.panel {
+  border: var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--bg-raised);
+  padding: var(--s5);
+}
+
+/* ── figures ────────────────────────────────────────────────────────────── */
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--s2);
+  gap: 0;
+  border-top: var(--rule);
 }
+/* Columns divided by a hairline rather than boxed one by one. */
 .kpi {
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--s3) var(--s4);
-  background: var(--bg-raised);
+  padding: var(--s4) var(--s5) var(--s4) var(--s5);
   min-width: 0;
+  border-left: var(--rule);
 }
+.kpi:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+/* Labels WRAP rather than truncate. Mono at this tracking needs more room than the
+   old sans labels did, and a KPI reading "QUOTED BUT UNTA…" is a KPI that has lost
+   the word the whole page is about. The min-height reserves two lines so every
+   number in the row still sits on one baseline whether its label wrapped or not. */
 .kpi dt {
-  font-size: 11px;
+  font-family: var(--relay-font-mono);
+  font-size: 10.5px;
   color: var(--ink-3);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 500;
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  min-height: 2.7em;
+  overflow-wrap: break-word;
 }
 .kpi dd {
-  margin: 2px 0 0;
-  font-family: var(--relay-font-display);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  margin: 10px 0 0;
+  font-family: var(--relay-font-mono);
+  font-size: 29px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  color: var(--ink);
 }
 .kpi .sub {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--ink-3);
-  margin-top: 2px;
+  margin-top: 7px;
+}
+
+/* The one number a page is about, set as a statement rather than a stat. */
+.figure {
+  font-family: var(--relay-font-display);
+  font-weight: 400;
+  font-size: clamp(52px, 8vw, 84px);
+  line-height: 0.94;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+/* An eyebrow above a headline: mono, an accent tick, quiet. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--relay-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.eyebrow::before {
+  content: "";
+  width: 15px;
+  height: 2px;
+  flex: none;
+  background: var(--accent);
 }
 
 /* ── tables ─────────────────────────────────────────────────────────────── */
 .tablewrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 0;
+  border-top: var(--rule);
+  border-radius: 0;
 }
 table {
   width: 100%;
@@ -243,67 +372,88 @@ thead th {
   position: sticky;
   top: 0;
   text-align: left;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-family: var(--relay-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--ink-3);
-  background: var(--bg-sunken);
-  padding: 8px 12px;
+  background: var(--bg);
+  padding: 10px 14px;
   white-space: nowrap;
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--rule);
 }
 tbody td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 11px 14px;
+  border-bottom: var(--rule);
   white-space: nowrap;
+  color: var(--ink-2);
+}
+
+/* Outer edges sit flush with the page rules; every inner boundary keeps its gutter.
+   Zeroing the padding on both sides of a right-aligned column instead ran the
+   headings together: NOTIONAL TAKERS ZERO-FILL arrived as one word. */
+thead th:first-child,
+tbody td:first-child {
+  padding-left: 0;
+}
+thead th:last-child,
+tbody td:last-child {
+  padding-right: 0;
+}
+tbody td:first-child {
+  color: var(--ink);
+  font-weight: 500;
 }
 tbody tr:last-child td {
   border-bottom: 0;
 }
-tbody tr:hover td {
-  background: var(--bg-sunken);
-}
+tbody tr:hover td,
 tbody tr:focus-within td {
   background: var(--bg-sunken);
 }
 td.num,
 th.num {
   text-align: right;
+  font-family: var(--relay-font-mono);
 }
 /* A row that has just arrived over the socket. It fades, so the eye is drawn once
    and the table then reads as an ordinary table rather than a light show. */
 tr.fresh td {
-  animation: settle 1.6s ease-out;
+  animation: settle 1.8s ease-out;
 }
 @keyframes settle {
   0% {
     background: var(--up-bg);
+    box-shadow: inset 2px 0 0 var(--up);
   }
   100% {
     background: transparent;
+    box-shadow: inset 2px 0 0 transparent;
   }
 }
 
 /* ── controls ───────────────────────────────────────────────────────────── */
 .btn {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--r-md);
-  padding: 10px 14px;
+  padding: 9px 15px;
   font: inherit;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
+  letter-spacing: -0.005em;
   cursor: pointer;
-  background: var(--ink);
-  color: var(--bg);
-  min-height: 40px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--s2);
+  transition: filter 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .btn:hover:not(:disabled) {
-  opacity: 0.9;
+  filter: brightness(1.09);
 }
 .btn:disabled {
   cursor: not-allowed;
@@ -313,83 +463,108 @@ tr.fresh td {
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);
-  border: 1px solid var(--line);
-  font-weight: 600;
+  border-color: var(--line-strong);
+  font-weight: 500;
 }
 .btn.ghost:hover:not(:disabled) {
-  border-color: var(--line-strong);
+  border-color: var(--ink-3);
   color: var(--ink);
+  filter: none;
 }
 .btn.sm {
-  padding: 5px 9px;
-  min-height: 30px;
-  font-size: 12px;
+  padding: 4px 9px;
+  min-height: 28px;
+  font-size: 11.5px;
   border-radius: var(--r-sm);
 }
 
 .seg {
   display: inline-flex;
-  background: var(--bg-sunken);
+  border: var(--rule);
   border-radius: var(--r-sm);
-  padding: 2px;
-  gap: 2px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 .seg button {
   border: 0;
+  border-left: var(--rule);
   background: transparent;
   color: var(--ink-3);
-  padding: 5px 10px;
-  border-radius: 6px;
+  padding: 5px 11px;
+  border-radius: 0;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-family: var(--relay-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.seg button:first-child {
+  border-left: 0;
 }
 .seg button[aria-pressed="true"] {
-  background: var(--bg-raised);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgba(11, 13, 16, 0.1);
+  background: var(--ink);
+  color: var(--bg);
 }
 
 label.field {
   display: grid;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-2);
+  gap: 6px;
+  font-family: var(--relay-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 input[type="text"],
 input[type="url"],
 input[type="password"] {
   font: inherit;
+  font-family: var(--relay-font-mono);
   font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
   padding: 9px 11px;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-strong);
-  background: var(--bg);
+  background: var(--bg-raised);
   color: var(--ink);
   width: 100%;
-  min-height: 40px;
+  min-height: 38px;
+}
+input::placeholder {
+  color: var(--ink-3);
+  opacity: 0.75;
 }
 input:focus-visible {
-  border-color: var(--focus);
+  border-color: var(--accent);
 }
+/* A hint often sits INSIDE label.field, which is mono, uppercased and widely
+   tracked. Without resetting all three, a sentence of help text comes out shouting
+   in a monospace the reader has to decode. Reset explicitly rather than relying on
+   where it happens to be nested. */
 .hint {
+  font-family: var(--relay-font-ui);
   font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ink-3);
-  font-weight: 500;
+  line-height: 1.5;
 }
 
 /* ── code / snippet ─────────────────────────────────────────────────────── */
 pre.snippet {
   margin: 0;
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line);
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  border: var(--rule);
   background: var(--bg-sunken);
   font-family: var(--relay-font-mono);
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.65;
   /*
    * Wrap rather than scroll. The snippet is the thing a partner copies, and a
    * horizontal scrollbar hides the half of it that says who gets paid —
@@ -407,28 +582,31 @@ code.inline {
   font-family: var(--relay-font-mono);
   font-size: 12px;
   background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  border: var(--rule);
+  border-radius: var(--r-sm);
   padding: 1px 5px;
 }
 
 /* ── notices ────────────────────────────────────────────────────────────── */
+/* Carried on a left bar rather than a fully tinted box: it marks the message
+   without turning a third of the page a different colour. */
 .note {
-  padding: var(--s3);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line);
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0;
   background: var(--bg-sunken);
   color: var(--ink-2);
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .note.warn {
-  border-color: color-mix(in srgb, var(--down) 35%, var(--line));
+  border-left-color: var(--down);
   background: var(--down-bg);
   color: var(--down-ink);
 }
 .note.ok {
-  border-color: color-mix(in srgb, var(--up) 35%, var(--line));
+  border-left-color: var(--up);
   background: var(--up-bg);
   color: var(--up-ink);
 }
@@ -437,7 +615,7 @@ code.inline {
 /* Skeletons match the shape of what is coming, so the page does not jump when the
    data lands. They pulse rather than sweep — one animation, no gradient theatre. */
 .skel {
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg-sunken);
   animation: breathe 1.4s ease-in-out infinite;
 }
@@ -458,35 +636,38 @@ code.inline {
 }
 .uplot,
 .u-wrap {
-  font-family: var(--relay-font-ui) !important;
+  font-family: var(--relay-font-mono) !important;
 }
 .u-legend {
-  font-size: 11.5px !important;
+  font-size: 11px !important;
   color: var(--ink-2);
 }
 .u-legend .u-marker {
-  border-radius: 2px;
+  border-radius: 0;
 }
 .legend {
   display: flex;
-  gap: var(--s3);
+  gap: var(--s4);
   flex-wrap: wrap;
-  font-size: 11.5px;
+  font-family: var(--relay-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-3);
 }
 .legend .sw {
   display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  margin-right: 5px;
-  vertical-align: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  margin-right: 6px;
+  vertical-align: 0;
 }
 
 /* ── landing ────────────────────────────────────────────────────────────── */
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 400px);
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 392px);
   gap: var(--s6);
   align-items: start;
 }
@@ -498,29 +679,67 @@ code.inline {
  * shrink, the item will not.
  *
  * This is the fix for the landing page overflowing under the widget at 1440 px, and
- * it belongs on the container rather than on each page that happens to hit it.
+ * for the ecosystem page overflowing at 390 px: .stack is a grid too, and a uPlot
+ * chart's min-content is whatever width it last drew at, so the track could never
+ * shrink back down and the whole page stretched to the chart instead. It belongs on
+ * the container rather than on each page that happens to hit it.
  */
 .split > *,
-.three > * {
+.three > * ,
+.stack > * {
   min-width: 0;
 }
+/* `main` is a flex item of .shell (a column flex container), and a flex item has the
+   same min-width:auto default, so a wide descendant stretches the whole page rather
+   than being contained by it. */
+main {
+  min-width: 0;
+}
+/*
+ * Column ratios live here, as modifiers, and NOT as inline `gridTemplateColumns` on
+ * the element. An inline style outranks every stylesheet rule including the one in
+ * the media query below, so a page that set its own tracks kept two columns at phone
+ * width and clipped its right-hand one off the screen. Naming them means the collapse
+ * applies to all of them.
+ */
+.split.fields {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--s3);
+}
+.split.snippet {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+}
+.split.dash {
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+}
 .lede {
-  font-size: 17px;
-  line-height: 1.5;
+  font-size: 16.5px;
+  line-height: 1.6;
   color: var(--ink-2);
-  max-width: 60ch;
+  max-width: 58ch;
 }
 .three {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0;
+  border-top: var(--rule);
+}
+/* The three-up reads as three columns of one section, divided by hairlines. */
+.three > .card {
+  border-top: 0;
+  border-left: var(--rule);
+  padding: var(--s4) var(--s5) 0;
+}
+.three > .card:first-child {
+  border-left: 0;
+  padding-left: 0;
 }
 
 /* ── a11y ───────────────────────────────────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 .sr {
   position: absolute;
@@ -542,7 +761,30 @@ code.inline {
 
 /* ── responsive to 375 px ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .split {
+  /* Every variant is named, because a compound selector like `.split.snippet` beats a
+     bare `.split` here no matter which rule comes last. */
+  .split,
+  .split.fields,
+  .split.snippet,
+  .split.dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 680px) {
+  /* Hairline columns become stacked rows: a vertical rule between items that are no
+     longer side by side is just a stray mark. */
+  .kpi,
+  .three > .card {
+    border-left: 0;
+    padding-left: 0;
+    border-top: var(--rule);
+  }
+  .kpi:first-child,
+  .three > .card:first-child {
+    border-top: 0;
+  }
+  .kpis,
+  .three {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -553,6 +795,7 @@ code.inline {
   .topbar {
     padding: var(--s2) var(--s3);
     gap: var(--s2);
+    height: auto;
     flex-wrap: wrap;
   }
   .nav {
@@ -560,13 +803,16 @@ code.inline {
     flex-basis: 100%;
     overflow-x: auto;
   }
-  h1 {
-    font-size: 24px;
+  .nav a {
+    height: 38px;
+  }
+  /* The wordmark's subtitle is 24 characters of tracked-out mono. On the top row of a
+     phone it pushes the theme toggle off the right edge, so it goes. The mark and the
+     name still identify the page. */
+  .wordmark span {
+    display: none;
   }
   .kpi dd {
-    font-size: 20px;
-  }
-  .kpis {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    font-size: 24px;
   }
 }
