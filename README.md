@@ -37,8 +37,8 @@ page's CSS cannot reach in and the widget's cannot leak out.
 2. **[Try your own snippet](https://relay-console-sohamjunejas-projects.vercel.app/try)**
    — put any partner id and address in, watch the card mount with them.
 3. **[Read an article with a market in it](https://relay-demo-sohamjunejas-projects.vercel.app/btc-window/)**
-   — the market card is in the article. *Create a wallet in this browser*, take the
-   faucet, pick a side. No extension, no bridging, no leaving the page.
+   — tap *Trade in one click*. A testnet wallet is created in your browser and
+   funded; no extension, no bridging, no leaving the page.
 4. **[Watch your trade land](https://relay-console-sohamjunejas-projects.vercel.app/ecosystem)**
    — the fill appears on the public leaderboard, credited to that publisher, within
    seconds.
